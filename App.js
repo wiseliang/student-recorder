@@ -6,38 +6,15 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 
+import HomeScreen from './src/screens/HomeScreen'
+import RecordScreen from './src/screens/RecordScreen'
+import ProgressScreen from './src/screens/ProgressScreen'
+import ResultScreen from './src/screens/ResultScreen'
+import SettingsScreen from './src/screens/SettingsScreen'
+import HistoryScreen from './src/screens/HistoryScreen'
+
 const Tab = createBottomTabNavigator()
 const Stack = createNativeStackNavigator()
-
-// 最小兜底页面
-function FallbackScreen({ msg }) {
-  return (
-    <View style={styles.center}>
-      <Text style={{ fontSize: 18, color: '#333' }}>{msg || '页面加载中...'}</Text>
-    </View>
-  )
-}
-
-// 动态加载页面，如果导入失败就显示兜底
-let HomeScreen, RecordScreen, ProgressScreen, ResultScreen, SettingsScreen, HistoryScreen
-try {
-  HomeScreen = require('./src/screens/HomeScreen').default
-} catch (e) { console.warn('HomeScreen load failed:', e.message); HomeScreen = () => <FallbackScreen msg="首页加载失败" /> }
-try {
-  RecordScreen = require('./src/screens/RecordScreen').default
-} catch (e) { console.warn('RecordScreen load failed:', e.message); RecordScreen = () => <FallbackScreen msg="录入页加载失败" /> }
-try {
-  ProgressScreen = require('./src/screens/ProgressScreen').default
-} catch (e) { console.warn('ProgressScreen load failed:', e.message); ProgressScreen = () => <FallbackScreen msg="进度页加载失败" /> }
-try {
-  ResultScreen = require('./src/screens/ResultScreen').default
-} catch (e) { console.warn('ResultScreen load failed:', e.message); ResultScreen = () => <FallbackScreen msg="结果页加载失败" /> }
-try {
-  SettingsScreen = require('./src/screens/SettingsScreen').default
-} catch (e) { console.warn('SettingsScreen load failed:', e.message); SettingsScreen = () => <FallbackScreen msg="设置页加载失败" /> }
-try {
-  HistoryScreen = require('./src/screens/HistoryScreen').default
-} catch (e) { console.warn('HistoryScreen load failed:', e.message); HistoryScreen = () => <FallbackScreen msg="历史页加载失败" /> }
 
 function HomeTabs() {
   return (
@@ -60,7 +37,6 @@ export default function App() {
   const [booted, setBooted] = useState(false)
 
   useEffect(() => {
-    // 非阻塞后台登录
     AsyncStorage.getItem('openid').then(openid => {
       if (!openid) {
         const { post } = require('./src/utils/api')
@@ -69,8 +45,7 @@ export default function App() {
           .catch(() => {})
       }
     }).catch(() => {})
-    // 延迟 100ms 确保导航就绪
-    setTimeout(() => setBooted(true), 100)
+    setTimeout(() => setBooted(true), 200)
   }, [])
 
   if (!booted) {
