@@ -166,6 +166,15 @@ export default function RecordScreen({ route, navigation }) {
             ))}
           </View>
 
+          {type === 'fill-missing' && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>🔍 自动扫描补录</Text>
+              <Text style={styles.hint}>扫描第1周～当前周所有奇数周</Text>
+              <Text style={styles.hint}>对"差x次"学生强制补录陪伴上课</Text>
+              <Text style={styles.hint}>跳过已有记录，只补缺失次数</Text>
+            </View>
+          )}
+
           {type === 'companion' && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>陪伴类型</Text>
