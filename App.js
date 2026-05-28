@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import 'react-native-gesture-handler'
+import React, { useEffect } from 'react'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { Text, View, ActivityIndicator } from 'react-native'
+import { Text } from 'react-native'
 import HomeScreen from './src/screens/HomeScreen'
 import RecordScreen from './src/screens/RecordScreen'
 import ProgressScreen from './src/screens/ProgressScreen'
@@ -46,13 +48,15 @@ export default function App() {
   }, [])
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: '#1B62A5' }, headerTintColor: '#fff' }}>
-        <Stack.Screen name="Main" component={HomeTabs} options={{ headerShown: false }} />
-        <Stack.Screen name="Record" component={RecordScreen} options={{ title: '录入' }} />
-        <Stack.Screen name="Progress" component={ProgressScreen} options={{ title: '执行中', headerLeft: () => null }} />
-        <Stack.Screen name="Result" component={ResultScreen} options={{ title: '结果', headerLeft: () => null }} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerStyle: { backgroundColor: '#1B62A5' }, headerTintColor: '#fff' }}>
+          <Stack.Screen name="Main" component={HomeTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="Record" component={RecordScreen} options={{ title: '录入' }} />
+          <Stack.Screen name="Progress" component={ProgressScreen} options={{ title: '执行中', headerLeft: () => null }} />
+          <Stack.Screen name="Result" component={ResultScreen} options={{ title: '结果', headerLeft: () => null }} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </GestureHandlerRootView>
   )
 }
