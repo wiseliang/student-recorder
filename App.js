@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { Text } from 'react-native'
+import { Text, View, ActivityIndicator } from 'react-native'
 import HomeScreen from './src/screens/HomeScreen'
 import RecordScreen from './src/screens/RecordScreen'
 import ProgressScreen from './src/screens/ProgressScreen'
@@ -23,18 +23,16 @@ function HomeTabs() {
       tabBarActiveTintColor: '#1B62A5',
     }}>
       <Tab.Screen name="Home" component={HomeScreen}
-        options={{ title: '首页', headerTitle: '学生工作记录', tabBarIcon: () => <Text>📋</Text> }} />
+        options={{ title: '首页', headerTitle: '批量录入助手', tabBarIcon: ({ color }) => <Text style={{fontSize:20}}>📋</Text> }} />
       <Tab.Screen name="History" component={HistoryScreen}
-        options={{ title: '历史', tabBarIcon: () => <Text>📜</Text> }} />
+        options={{ title: '历史', tabBarIcon: () => <Text style={{fontSize:20}}>📜</Text> }} />
       <Tab.Screen name="Settings" component={SettingsScreen}
-        options={{ title: '设置', tabBarIcon: () => <Text>⚙️</Text> }} />
+        options={{ title: '设置', tabBarIcon: () => <Text style={{fontSize:20}}>⚙️</Text> }} />
     </Tab.Navigator>
   )
 }
 
 export default function App() {
-  const [ready, setReady] = useState(false)
-
   useEffect(() => {
     (async () => {
       const openid = await AsyncStorage.getItem('openid')
@@ -44,11 +42,8 @@ export default function App() {
           await AsyncStorage.setItem('openid', data.openid)
         } catch (_) {}
       }
-      setReady(true)
     })()
   }, [])
-
-  if (!ready) return null
 
   return (
     <NavigationContainer>
