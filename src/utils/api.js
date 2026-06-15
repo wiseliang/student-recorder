@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const BASE_URL = 'https://43.143.235.124'
+const BASE_URL = 'https://118.190.208.230'
 
 async function request(method, path, data) {
   const openid = await AsyncStorage.getItem('openid')

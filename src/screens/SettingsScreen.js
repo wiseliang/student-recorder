@@ -1,17 +1,26 @@
 import React, { useState, useCallback } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect } from '@react-navigation/native'
 import { get, post } from '../utils/api'
+import { getCurrentWeek, getWeekRange } from '../utils/week'
 
 export default function SettingsScreen() {
   const [studentId, setStudentId] = useState('')
   const [password, setPassword] = useState('')
   const [hasCred, setHasCred] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [week1Date, setWeek1Date] = useState('2026-03-09')
+  const [newDate, setNewDate] = useState('')
+  const [currentWeek, setCurrentWeek] = useState(0)
+  const [weekRange, setWeekRangeState] = useState('')
+  const [settingWeek, setSettingWeek] = useState(false)
 
   useFocusEffect(useCallback(() => {
     get('/api/auth/credential').then(r => setHasCred(r.hasCredential)).catch(() => {})
+    const w = getCurrentWeek()
+    setCurrentWeek(w)
+    setWeekRangeState(getWeekRange(w))
   }, []))
 
   const save = async () => {
@@ -23,6 +32,22 @@ export default function SettingsScreen() {
       setHasCred(true)
     } catch (e) { Alert.alert('保存失败', e.message) }
     finally { setSaving(false) }
+  }
+
+  const setWeekStart = async () => {
+    if (!newDate) return Alert.alert('请输入日期')
+    const d = new Date(newDate)
+    if (d.getDay() !== 1) return Alert.alert('请选择周一')
+    setSettingWeek(true)
+    try {
+      const res = await post('/api/week/set-start-date', { date: newDate })
+      Alert.alert('周次基准已更新')
+      setWeek1Date(res.newDate)
+      setCurrentWeek(res.currentWeek)
+      setWeekRangeState(res.weekRange)
+      setNewDate('')
+    } catch (e) { Alert.alert('更新失败', e.message) }
+    finally { setSettingWeek(false) }
   }
 
   return (
@@ -44,8 +69,18 @@ export default function SettingsScreen() {
         </View>
       )}
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>📅 周次基准日期</Text>
+        <Text style={styles.desc}>当前第1周周一: {week1Date}</Text>
+        <Text style={styles.desc}>当前: 第{currentWeek}周 · {weekRange}</Text>
+        <Text style={styles.label}>新基准日期 (周一)</Text>
+        <TextInput style={styles.input} value={newDate} onChangeText={setNewDate} placeholder="YYYY-MM-DD" />
+        <TouchableOpacity style={styles.btn} onPress={setWeekStart} disabled={settingWeek}>
+          <Text style={styles.btnText}>{settingWeek ? '更新中...' : '更新周次基准'}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>关于</Text>
-        <Text style={styles.desc}>学生工作记录 v1.0.0</Text>
+        <Text style={styles.desc}>批量录入助手 v2.0.0</Text>
       </View>
     </View>
   )
