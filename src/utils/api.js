@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const BASE_URL = 'https://118.190.208.230'
+// Cloudflare Tunnel URL（服务器重启后会变，需同步更新）
+const BASE_URL = 'https://terrorists-solaris-trail-care.trycloudflare.com'
+// 原直连: 'https://118.190.208.230'
 
 async function request(method, path, data) {
   const openid = await AsyncStorage.getItem('openid')
