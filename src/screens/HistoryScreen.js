@@ -18,6 +18,7 @@ export default function HistoryScreen({ navigation }) {
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>📭</Text>
           <Text style={styles.emptyText}>暂无录入记录</Text>
+          <Text style={styles.emptyHint}>完成一次录入后这里会显示记录</Text>
         </View>
       ) : (
         <FlatList data={items} keyExtractor={i => i.taskUuid}
@@ -50,4 +51,5 @@ const styles = StyleSheet.create({
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyIcon: { fontSize: 64, marginBottom: 16 },
   emptyText: { color: '#999', fontSize: 16 },
+  emptyHint: { fontSize: 13, color: '#ccc', marginTop: 4 },
 })

@@ -6,24 +6,37 @@ export default function ProgressScreen({ route, navigation }) {
   const { taskUuid } = route.params
   const [task, setTask] = useState(null)
   const [code, setCode] = useState('')
-  const timer = useRef(null)
-
-  useEffect(() => {
-    fetchProgress()
-    timer.current = setInterval(fetchProgress, 2000)
-    return () => clearInterval(timer.current)
-  }, [])
+  const [fetchError, setFetchError] = useState('')
+  const backoffRef = useRef(2000)
+  const pollTimerRef = useRef(null)
 
   const fetchProgress = async () => {
     try {
       const t = await get(`/api/task/${taskUuid}`)
       setTask(t)
+      setFetchError('')
+      backoffRef.current = 2000
       if (t.status === 'completed' || t.status === 'failed') {
-        clearInterval(timer.current)
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current)
         setTimeout(() => navigation.replace('Result', { taskUuid }), 1500)
       }
-    } catch (_) {}
+    } catch (_) {
+      setFetchError('网络异常，正在重试...')
+      backoffRef.current = Math.min(backoffRef.current * 2, 16000)
+    }
   }
+
+  useEffect(() => {
+    fetchProgress()
+    const schedulePoll = () => {
+      pollTimerRef.current = setTimeout(async () => {
+        await fetchProgress()
+        schedulePoll()
+      }, backoffRef.current)
+    }
+    schedulePoll()
+    return () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current) }
+  }, [])
 
   const submitCode = async () => {
     try {
@@ -52,6 +65,11 @@ export default function ProgressScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      {fetchError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{fetchError}</Text>
+        </View>
+      ) : null}
       <Text style={styles.title}>
         {task.status === 'completed' ? '✅ 录入完成' : task.status === 'failed' ? '❌ 录入失败' : '📡 执行中...'}
       </Text>
@@ -92,4 +110,6 @@ const styles = StyleSheet.create({
   yellow: { color: '#FAAD14', fontSize: 24, fontWeight: 'bold' },
   red: { color: '#FF4D4F', fontSize: 24, fontWeight: 'bold' },
   current: { fontSize: 13, color: '#999', marginBottom: 20 },
+  errorBanner: { width: '100%', backgroundColor: '#FFF3E0', borderRadius: 12, padding: 16, marginBottom: 16 },
+  errorBannerText: { fontSize: 13, color: '#E65100' },
 })

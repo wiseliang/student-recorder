@@ -8,3 +8,11 @@ dist/
 *.mobileprovision
 *.orig.*
 web-build/
+android/app/build/
+android/app/build*/
+android/.gradle/
+android/.idea/
+android/local.properties
+*.apk
+*.aab
+*.hbc

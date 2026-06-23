@@ -8,16 +8,17 @@ export default function HomeScreen({ navigation }) {
   const [week, setWeek] = useState(0)
   const [weekRange, setWeekRange] = useState('')
   const [hasCred, setHasCred] = useState(false)
+  const [hasActiveSession, setHasActiveSession] = useState(false)
 
   useFocusEffect(useCallback(() => {
     const w = getCurrentWeek()
     setWeek(w)
     setWeekRange(getWeekRange(w))
     get('/api/auth/credential').then(r => setHasCred(r.hasCredential)).catch(() => {})
+    get('/api/auth/session-status').then(r => setHasActiveSession(r.hasActiveSession)).catch(() => {})
   }, []))
 
   const go = (type) => {
-    if (!hasCred) return alert('请先在设置中配置工号和密码')
     navigation.navigate('Record', { type, week })
   }
 
@@ -63,7 +64,7 @@ export default function HomeScreen({ navigation }) {
         </View>
       </TouchableOpacity>
 
-      {!hasCred && (
+      {!hasCred && !hasActiveSession && (
         <TouchableOpacity style={styles.warn} onPress={() => navigation.navigate('Settings')}>
           <Text style={styles.warnText}>⚠️ 请先配置工号和密码</Text>
         </TouchableOpacity>
