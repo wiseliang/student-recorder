@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, StyleSheet, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as FileSystem from 'expo-file-system'
+import * as MediaLibrary from 'expo-media-library'
 import { get, post } from '../utils/api'
 
 const TYPE_NAMES = { companion: '录入陪伴', talk: '录入谈话', batch: '一键录入', 'fill-missing': '查询补录' }
@@ -197,6 +199,30 @@ export default function RecordScreen({ route, navigation }) {
     setStudents(students.map(s => ({ ...s, _checked: all })))
   }
 
+  // 保存二维码到相册
+  const saveQrCode = async () => {
+    if (!qrCodeImage) return
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('需要权限', '请在设置中允许访问相册')
+        return
+      }
+      // data:image/png;base64,... → 写入临时文件 → 保存到相册
+      const base64Data = qrCodeImage.includes('base64,')
+        ? qrCodeImage.split('base64,')[1]
+        : qrCodeImage
+      const fileUri = FileSystem.cacheDirectory + `qrcode_${Date.now()}.png`
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      })
+      await MediaLibrary.saveToLibraryAsync(fileUri)
+      Alert.alert('已保存', '二维码已保存到相册')
+    } catch (e) {
+      Alert.alert('保存失败', e.message)
+    }
+  }
+
   const startRecord = async () => {
     setRecording(true)
     const selectedWeeks = weekList.filter(w => w.checked).map(w => w.val)
@@ -251,7 +277,11 @@ export default function RecordScreen({ route, navigation }) {
           {loginStep === 'qrcode' && (
             <View style={{ alignItems: 'center' }}>
               <Text style={styles.loginHint}>{qrMessage || '请使用 HIT APP 扫描二维码'}</Text>
-              {qrCodeImage ? <Image source={{ uri: qrCodeImage }} style={styles.qrCode} resizeMode="contain" /> : null}
+              {qrCodeImage ? (
+                <TouchableOpacity onLongPress={saveQrCode} activeOpacity={0.8}>
+                  <Image source={{ uri: qrCodeImage }} style={styles.qrCode} resizeMode="contain" />
+                </TouchableOpacity>
+              ) : null}
               <Text style={styles.saveHint}>长按二维码可保存到相册</Text>
               <TouchableOpacity style={[styles.btn, { marginTop: 10, width: '100%' }]} onPress={checkQrLogin} disabled={checkingQr}>
                 <Text style={styles.btnText}>{checkingQr ? '验证中...' : '🔄 已完成扫码，验证登录'}</Text>

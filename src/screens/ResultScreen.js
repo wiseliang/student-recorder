@@ -17,6 +17,18 @@ export default function ResultScreen({ route, navigation }) {
 
   useEffect(() => { loadResult() }, [])
 
+  const groupedDetails = useMemo(() => {
+    if (!task?.details || task.details.length === 0) return null
+    const groups = {}
+    task.details.forEach(d => {
+      const key = d.name || `#${d.seq}`
+      if (!groups[key]) groups[key] = { name: key, week: d.week, success: 0, skipped: 0, error: 0, total: 0 }
+      groups[key][d.result]++
+      groups[key].total++
+    })
+    return Object.values(groups)
+  }, [task?.details])
+
   if (loading) return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
       <ActivityIndicator size="large" color="#1B62A5" />
@@ -39,18 +51,6 @@ export default function ResultScreen({ route, navigation }) {
 
   const typeNames = { companion: '录入陪伴', talk: '录入谈话', batch: '一键录入', 'fill-missing': '查询补录' }
   const typeName = typeNames[task.type] || task.type
-
-  const groupedDetails = useMemo(() => {
-    if (!task?.details || task.details.length === 0) return null
-    const groups = {}
-    task.details.forEach(d => {
-      const key = d.name || `#${d.seq}`
-      if (!groups[key]) groups[key] = { name: key, week: d.week, success: 0, skipped: 0, error: 0, total: 0 }
-      groups[key][d.result]++
-      groups[key].total++
-    })
-    return Object.values(groups)
-  }, [task?.details])
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
@@ -93,7 +93,7 @@ export default function ResultScreen({ route, navigation }) {
         </View>
       )}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.navigate('HomeTab')}>
+        <TouchableOpacity style={styles.btnSecondary} onPress={() => navigation.popToTop()}>
           <Text style={styles.btnSecondaryText}>🏠 返回首页</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.replace('Record', { type: task.type, week: task.week || 1 })}>
