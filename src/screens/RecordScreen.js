@@ -39,6 +39,28 @@ export default function RecordScreen({ route, navigation }) {
   const [rangeFrom, RF] = useState("1"),
     [rangeTo, RT] = useState("1"),
     [previewLimit, PL] = useState(50);
+  const restorePlan = (p) => {
+    P(p);
+    const r = p?.request;
+    if (!r) return;
+    T(r.recordType);
+    M(r.mode || "record");
+    W(r.weeks || []);
+    S(r.studentIds || []);
+    C(r.content || "");
+    D(
+      Object.fromEntries(
+        Object.entries(r.schedule || {}).map(([w, value]) => [
+          w,
+          value.replace(/\//g, "-"),
+        ]),
+      ),
+    );
+    if (r.durationMinutes) N(String(r.durationMinutes));
+    if (r.method) F(r.method);
+    if (r.scene) G(r.scene);
+    if (r.pbType) H(r.pbType);
+  };
   const foreground = useForeground();
   const alive = useRef(true),
     sequence = useRef(0),
@@ -63,7 +85,7 @@ export default function RecordScreen({ route, navigation }) {
     (route.params?.retryTaskUuid ? Promise.resolve(null) : currentPlan())
       .then((id) => id && get("/api/task/plans/" + id))
       .then((p) => {
-        if (p && alive.current) P(p);
+        if (p && alive.current) restorePlan(p);
       })
       .catch((e) => alive.current && E(e));
     return () => {
@@ -92,7 +114,7 @@ export default function RecordScreen({ route, navigation }) {
         "/api/task/" + route.params.retryTaskUuid + "/retry-plan",
       );
       if (alive.current) {
-        P(p);
+        restorePlan(p);
         await currentPlan(p.id);
       }
     }

@@ -29,7 +29,9 @@ export function formatActivity(date) {
 export function validSchedule(value, calendar, week) {
   if (!value) return false;
   const b = bounds(calendar, week),
-    time = new Date(value.replace(" ", "T") + "+08:00").getTime();
+    time = new Date(
+      value.replace(/\//g, "-").replace(" ", "T") + "+08:00",
+    ).getTime();
   return (
     Number.isFinite(time) && time >= b.min.getTime() && time <= b.max.getTime()
   );
