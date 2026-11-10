@@ -46,6 +46,8 @@ export function SchoolProvider({ children }) {
     };
   }, [refresh]);
   const connected = async (calendar) => {
+    // A status read started before login must finish before fetching the new session.
+    if (refreshFlight.current) await refreshFlight.current.catch(() => {});
     if (calendar)
       S((s) => ({ ...s, loading: false, hasActiveSession: true, calendar }));
     await refresh();
