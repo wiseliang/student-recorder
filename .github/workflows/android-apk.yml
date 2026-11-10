@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [feat/reliability-v1.4.3]
+    branches: [feat/overview-school-targets]
   workflow_dispatch:
 jobs:
   apk:

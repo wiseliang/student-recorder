@@ -14,6 +14,7 @@ import {
   SectionHeader,
   colors,
 } from "./ui";
+import Dropdown from "./Dropdown";
 import SchoolGate from "./SchoolGate";
 import PeoplePicker, { PeopleSummary } from "./PeoplePicker";
 import { DateField, ExcludedDates, WorkHours } from "./DateControls";
@@ -63,7 +64,8 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     [error, E] = useState(null),
     [busy, B] = useState(false),
     [hydrating, Y] = useState(true),
-    [notice, NT] = useState(null);
+    [notice, NT] = useState(null),
+    [schoolOptions, SO] = useState({ scenes: [], companionTypes: [] });
   const foreground = useForeground(),
     alive = useRef(true),
     lock = useRef(false),
@@ -83,6 +85,24 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     });
   selectedRef.current = ids;
   weeksRef.current = weeks;
+  useEffect(() => {
+    let live = true;
+    get("/api/academic/options")
+      .then((r) => {
+        if (live) SO(r);
+        return cacheWrite("academicOptions", r);
+      })
+      .catch(async (e) => {
+        const cached = await cacheRead("academicOptions");
+        if (live) {
+          if (cached) SO(cached);
+          else E(e);
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
   const beginRead = async (selectedWeeks) => {
     const range = refreshWeeks(
       selectedWeeks || weeksRef.current,
@@ -245,6 +265,20 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             await currentPlan(p.id);
             retryLoaded.current = true;
           }
+          return;
+        }
+        if (route.params?.overviewPrefill) {
+          const prefill = route.params.overviewPrefill;
+          restoreIds.current = prefill.studentIds;
+          selectedRef.current = prefill.studentIds;
+          selectionInitialized.current = true;
+          I(prefill.studentIds);
+          if (worklog) TG(String(prefill.targetCount || 1));
+          else W(prefill.weeks);
+          P(null);
+          S(0);
+          NT("总览仅带入补录范围，正在重新读取学校最新名单、次数和轮次。");
+          await beginRead(prefill.weeks);
           return;
         }
         const id = await currentPlan();
@@ -525,7 +559,9 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         <Title>{label}</Title>
         <Body muted>
           {scope}
-          {!worklog && entry === "automatic" ? " · 奇数周陪伴，偶数周谈话" : ""}
+          {!worklog && entry === "automatic"
+            ? " · 按周交替优先，补足学校次数与轮次"
+            : ""}
         </Body>
       </View>
       {notice && (
@@ -761,19 +797,24 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                           />
                         ))}
                         {!worklog && (
-                          <Field
+                          <Dropdown
                             label="学校谈话场景"
                             value={scene}
-                            onChangeText={SC}
+                            onChange={SC}
+                            options={schoolOptions.scenes}
+                            disabled={!schoolOptions.scenes.length}
+                            helper="轮次缺走访时，会在预览中补充走访场景谈话，请核对实际工作。"
                           />
                         )}
                       </>
                     )}
                     {!worklog && entry !== "talk" && (
-                      <Field
+                      <Dropdown
                         label="学校陪伴类型"
                         value={pbType}
-                        onChangeText={PB}
+                        onChange={PB}
+                        options={schoolOptions.companionTypes}
+                        disabled={!schoolOptions.companionTypes.length}
                       />
                     )}
                   </>
@@ -825,7 +866,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             ? (s) =>
                 `本学期 ${s.semesterCount} 次 · 学校列表 ${s.schoolCount} 次`
             : (s) =>
-                `待录入 ${s.missingWeeks?.length ?? "待核对"} 周 · 已有 ${s.recordedCount ?? "待核对"} 条`
+                `次数还差 ${s.remainingCount ?? "待核对"} · 轮次缺项 ${s.roundMissingCount ?? "待核对"}`
         }
         filterMissing={
           worklog

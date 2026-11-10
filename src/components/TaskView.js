@@ -81,6 +81,19 @@ export default function TaskView({ task, navigation }) {
           />
         )}
       </Card>
+      {!!task.schoolOutstanding?.length && (
+        <Card>
+          <Body>
+            学校复核仍有 {task.schoolOutstanding.length}{" "}
+            个学生周次存在次数或轮次缺口，已保存的记录保留。
+          </Body>
+          <Button
+            secondary
+            title="在总览核对剩余要求"
+            onPress={() => navigation.navigate("Overview")}
+          />
+        </Card>
+      )}
       {task.legacy && (
         <Body muted>旧版任务保留历史摘要，重试前请核对学校记录。</Body>
       )}

@@ -339,3 +339,7 @@ test('login completion waits for the pre-login status read before fetching the f
  assert.equal(calls,1);release({hasActiveSession:false});await stale;await connected;
  assert.equal(calls,2);assert.equal(states[0].hasActiveSession,true);assert.equal(states[0].loading,false);
 });
+
+test('a preview built with the old once-per-week rule is reloaded when school requirement rules change',()=>{
+ const recovery=moduleAt('utils/flowRecovery.js');assert.equal(recovery.needsRosterReload({code:'ACADEMIC_RULES_UPDATED'}),true);assert.equal(recovery.needsRosterReload({code:'ACADEMIC_RULES_UNKNOWN'}),false);
+});

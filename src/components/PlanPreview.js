@@ -47,6 +47,7 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
       >
         <Text style={[styles.body, { fontWeight: "500", flex: 1 }]}>
           {op.studentName} · 第 {op.week} 周
+          {op.occurrence > 1 ? ` · 第 ${op.occurrence} 条` : ""}
         </Text>
         <Pill>{op.type === "companion" ? "陪伴" : "谈话"}</Pill>
       </View>
@@ -56,6 +57,15 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
           : operationLabels[op.status] || op.status}
       </Body>
       {op.reason && <Body muted>{op.reason}</Body>}
+      {op.payload?.ruleVersion === 2 && op.status === "planned" && (
+        <Body muted>
+          {op.type === "talk"
+            ? `场景：${op.payload.scene}`
+            : `陪伴：${op.payload.pbType}`}{" "}
+          · 本周学校要求 {op.payload.schoolRequirementAtPreview?.required}{" "}
+          次，已计 {op.payload.schoolRequirementAtPreview?.completed} 次
+        </Body>
+      )}
       {op.status === "planned" && plan.state === "ready" && !plan.usedBy && (
         <Button secondary title="核对或修改" onPress={() => open(op, index)} />
       )}
@@ -106,10 +116,16 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
           ]}
         />
         <Body muted>
-          请核对是否与实际完成的工作一致。已有记录自动跳过，时间不会安排到未来。
+          请核对是否与实际完成的工作一致。达到学校次数和对应轮次后才跳过，时间不会安排到未来。
         </Body>
         {plan.error && (
           <Body style={{ color: colors.danger }}>{plan.error}</Body>
+        )}
+        {!!plan.ruleWarnings?.length && (
+          <Body style={{ color: colors.warning }}>
+            本入口只处理对应类型；另有 {plan.ruleWarnings.length}{" "}
+            项其他轮次举措未补齐，可从一键录入处理。
+          </Body>
         )}
         {rows.slice(0, 3).map((item) => (
           <View key={item.index}>{row({ item })}</View>

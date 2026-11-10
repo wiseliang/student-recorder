@@ -77,6 +77,23 @@ export default function TaskDetailsScreen({ route }) {
               {d.studentId}
               {d.recordedAt ? " · " + d.recordedAt : ""}
             </Body>
+            {d.goal && (
+              <Body muted>
+                {
+                  {
+                    count: "补足学校次数",
+                    talk: "补齐本轮谈话",
+                    visit: "补齐本轮走访",
+                    companion: "补齐本轮陪伴",
+                  }[d.goal]
+                }
+                {d.type === "talk"
+                  ? ` · 场景：${d.scene}`
+                  : d.pbType
+                    ? ` · ${d.pbType}`
+                    : ""}
+              </Body>
+            )}
             {d.reason && <Body muted>{d.reason}</Body>}
             {d.receipt?.schoolRecordId && (
               <Body muted>学校回执 {d.receipt.schoolRecordId}</Body>
