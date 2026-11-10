@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { get } from '../utils/api'
-import { getCurrentWeek, getWeekRange } from '../utils/week'
 
 export default function HomeScreen({ navigation }) {
   const [week, setWeek] = useState(0)
@@ -11,14 +10,16 @@ export default function HomeScreen({ navigation }) {
   const [hasActiveSession, setHasActiveSession] = useState(false)
 
   useFocusEffect(useCallback(() => {
-    const w = getCurrentWeek()
-    setWeek(w)
-    setWeekRange(getWeekRange(w))
+    get('/api/week/current').then(r => {
+      setWeek(r.week)
+      setWeekRange(r.weekRange)
+    }).catch(() => {})
     get('/api/auth/credential').then(r => setHasCred(r.hasCredential)).catch(() => {})
     get('/api/auth/session-status').then(r => setHasActiveSession(r.hasActiveSession)).catch(() => {})
   }, []))
 
   const go = (type) => {
+    if (!week) return
     navigation.navigate('Record', { type, week })
   }
 

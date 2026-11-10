@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
@@ -11,7 +11,7 @@ import ResultScreen from './screens/ResultScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import WeekSettingsScreen from './screens/WeekSettingsScreen'
 import HistoryScreen from './screens/HistoryScreen'
-import { BASE_URL } from './utils/api'
+import { post } from './utils/api'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -60,41 +60,39 @@ const splashStyles = StyleSheet.create({
 
 export default function App() {
   const [ready, setReady] = useState(false)
+  const [initError, setInitError] = useState('')
 
   useEffect(() => {
     initOpenid()
   }, [])
 
   const initOpenid = async () => {
+    setReady(false)
+    setInitError('')
     try {
-      let openid = await AsyncStorage.getItem('openid')
-      if (!openid) {
-        const code = 'rn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10)
-        try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 8000)
-          try {
-            const resp = await fetch(BASE_URL + '/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code }),
-              signal: controller.signal,
-            })
-            const data = await resp.json()
-            if (data.openid) {
-              await AsyncStorage.setItem('openid', data.openid)
-              return
-            }
-          } finally {
-            clearTimeout(timeoutId)
-          }
-        } catch (_) {}
-        // Fallback: generate local openid when server unreachable
-        const fallbackId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10)
-        await AsyncStorage.setItem('openid', fallbackId)
-      }
-    } catch (_) {}
-    setReady(true)
+      const data = await post('/api/auth/login', { platform: 'android' })
+      if (!data.openid || !data.token) throw new Error('登录响应无效，请更新服务端')
+      await AsyncStorage.multiSet([['openid', data.openid], ['authToken', data.token]])
+    } catch (e) {
+      setInitError(e.message || '无法连接服务器')
+    } finally {
+      setReady(true)
+    }
+  }
+
+  if (ready && initError) {
+    return <View style={splashStyles.container}>
+      <Text style={splashStyles.title}>连接失败</Text>
+      <Text style={splashStyles.subtitle}>{initError}</Text>
+      <TouchableOpacity onPress={initOpenid}><Text style={{ color: '#fff', fontSize: 18 }}>重试</Text></TouchableOpacity>
+      {initError.includes('登录已失效') && <TouchableOpacity onPress={() => Alert.alert(
+        '重新登录', '会话已过期。重新登录后需要重新配置学工账号，原任务历史仍保留在原账户下。',
+        [{ text: '取消', style: 'cancel' }, { text: '重新登录', onPress: async () => {
+          try { await AsyncStorage.multiRemove(['openid', 'authToken']); await initOpenid() }
+          catch (e) { setInitError(e.message || '无法清除登录信息') }
+        } }]
+      )}><Text style={{ color: '#fff', marginTop: 20 }}>重新登录</Text></TouchableOpacity>}
+    </View>
   }
 
   if (!ready) {

@@ -161,3 +161,14 @@ bash /root/restart-server.sh
 | Student list empty | Session expired or login failed | Re-login via QR code |
 | Can't save credentials | openid not initialized | Check network, reinstall app |
 | Cloudflare URL changed | Server restart changed tunnel URL | Check `app/src/utils/api.js` BASE_URL |
+
+
+## 会话隔离与周次修复升级
+
+此客户端需与 `wiseliang/hit-record-server` 的签名会话版本配套使用；所有受保护请求会携带服务端登录返回的 bearer token。不能只更新一端。
+
+首页和设置页直接读取 `/api/week/current` 的周次与学期基准。修改全局基准需要服务端 `ADMIN_OPENIDS` 中的管理员身份。后端持久化配置后立即生效。
+
+Android 可通过 `EXPO_PUBLIC_API_BASE_URL` 指定固定 HTTPS 服务地址；没有配置时保留原地址。旧临时隧道域名的可用性需在部署时确认。旧本地身份首次升级需重新配置学校凭证，不自动认领历史。签名会话 30 天有效，启动应用时续期；已过期时可在错误页重新登录并配置凭证。
+
+验证：`npm ci --ignore-scripts`、`npm test`、`npx expo export --platform android --output-dir /tmp/android-export`。导出 Android JavaScript / Hermes 成功不代表原生 APK 构建及真机验收已完成。

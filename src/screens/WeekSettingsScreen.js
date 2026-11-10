@@ -2,8 +2,7 @@ import React, { useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from '@react-navigation/native'
-import { post } from '../utils/api'
-import { getCurrentWeek, getWeekRange } from '../utils/week'
+import { get, post } from '../utils/api'
 
 const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
@@ -16,9 +15,11 @@ export default function WeekSettingsScreen() {
   const [settingWeek, setSettingWeek] = useState(false)
 
   useFocusEffect(useCallback(() => {
-    const w = getCurrentWeek()
-    setCurrentWeek(w)
-    setWeekRangeState(getWeekRange(w))
+    get('/api/week/current').then(r => {
+      setCurrentWeek(r.week)
+      setWeekRangeState(r.weekRange)
+      setWeek1Date(r.startDate)
+    }).catch(() => {})
   }, []))
 
   const setWeekStart = async () => {

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 // Cloudflare Tunnel URL（服务器重启后会变，需同步更新）
-const BASE_URL = 'https://terrorists-solaris-trail-care.trycloudflare.com'
+export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://terrorists-solaris-trail-care.trycloudflare.com'
 // 原直连: 'https://118.190.208.230'
 
 const REQUEST_TIMEOUT_MS = 15000
@@ -11,6 +11,8 @@ async function request(method, path, data) {
   const openid = await AsyncStorage.getItem('openid')
   const headers = { 'Content-Type': 'application/json' }
   if (openid) headers['x-openid'] = openid
+  const token = await AsyncStorage.getItem('authToken')
+  if (token) headers.Authorization = 'Bearer ' + token
 
   // Login/auth endpoints need longer timeout for browser navigation
   const isAuthEndpoint = path.includes('/api/auth/')

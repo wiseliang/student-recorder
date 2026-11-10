@@ -3,7 +3,6 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert 
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect } from '@react-navigation/native'
 import { get, post } from '../utils/api'
-import { getCurrentWeek, getWeekRange } from '../utils/week'
 
 export default function SettingsScreen({ navigation }) {
   const [studentId, setStudentId] = useState('')
@@ -16,9 +15,10 @@ export default function SettingsScreen({ navigation }) {
 
   useFocusEffect(useCallback(() => {
     checkCred()
-    const w = getCurrentWeek()
-    setCurrentWeek(w)
-    setWeekRangeState(getWeekRange(w))
+    get('/api/week/current').then(r => {
+      setCurrentWeek(r.week)
+      setWeekRangeState(r.weekRange)
+    }).catch(() => {})
   }, []))
 
   const checkCred = async () => {
