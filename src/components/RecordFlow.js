@@ -20,6 +20,11 @@ import PlanPreview from "./PlanPreview";
 import { useSchool } from "../state/SchoolContext";
 import { get, post, currentPlan, cacheRead, cacheWrite } from "../utils/api";
 import { useForeground } from "../utils/useForeground";
+import {
+  needsRosterReload,
+  snapshotIsExpired,
+  refreshWeeks,
+} from "../utils/flowRecovery";
 export default function RecordFlow({ route, navigation, worklog = false }) {
   const { school } = useSchool(),
     calendar = school.calendar,
@@ -56,15 +61,70 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     [plan, P] = useState(null),
     [error, E] = useState(null),
     [busy, B] = useState(false),
-    [hydrating, Y] = useState(true);
+    [hydrating, Y] = useState(true),
+    [notice, NT] = useState(null);
   const foreground = useForeground(),
     alive = useRef(true),
     lock = useRef(false),
     latest = useRef(null),
     restoreIds = useRef(null),
+    selectionInitialized = useRef(false),
+    selectedRef = useRef(ids),
+    weeksRef = useRef(weeks),
+    recovering = useRef(false),
+    pendingReload = useRef(false),
     today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Shanghai",
     });
+  selectedRef.current = ids;
+  weeksRef.current = weeks;
+  const beginRead = async (selectedWeeks) => {
+    const range = refreshWeeks(
+      selectedWeeks || weeksRef.current,
+      calendar,
+      entry,
+    );
+    if (!worklog) W(range);
+    const r = await post(
+      api + (worklog ? "/scan" : "/rosters"),
+      worklog ? {} : { weeks: range, entry },
+    );
+    await cacheWrite(
+      worklog ? "worklogScanId" : "academicScanId",
+      r.snapshotId,
+    );
+    if (alive.current) Z({ id: r.snapshotId, state: "scanning", students: [] });
+  };
+  const recoverSnapshot = async (context = {}) => {
+    if (recovering.current) return;
+    recovering.current = true;
+    try {
+      if (!alive.current) return;
+      S(0);
+      P(null);
+      O(false);
+      Z(null);
+      E(null);
+      restoreIds.current = selectionInitialized.current
+        ? [...selectedRef.current]
+        : null;
+      NT("名单次数已过期，正在自动重新读取…");
+      await currentPlan(null);
+      await cacheWrite(worklog ? "worklogScanId" : "academicScanId", null);
+      if (!school.hasActiveSession) {
+        pendingReload.current = true;
+        return;
+      }
+      await beginRead(context.weeks);
+    } catch (e) {
+      if (alive.current) {
+        NT(null);
+        E(e);
+      }
+    } finally {
+      recovering.current = false;
+    }
+  };
   const run = async (fn) => {
     if (lock.current) return false;
     lock.current = true;
@@ -74,7 +134,8 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       await fn();
       return true;
     } catch (e) {
-      if (alive.current && e.code !== "ABORTED") E(e);
+      if (alive.current && needsRosterReload(e)) await recoverSnapshot();
+      else if (alive.current && e.code !== "ABORTED") E(e);
       return false;
     } finally {
       lock.current = false;
@@ -82,9 +143,16 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     }
   };
   const applySnapshot = (s) => {
+    if (snapshotIsExpired(s)) {
+      void recoverSnapshot({ weeks: s.weeks });
+      return;
+    }
     Z(s);
+    if (s.state === "ready")
+      NT((old) => (old ? "名单与次数已重新读取，请核对人员后继续。" : null));
     if (s.state === "ready" && latest.current !== s.id) {
       latest.current = s.id;
+      selectionInitialized.current = true;
       const valid = s.students.map((x) => x.studentId);
       I(
         restoreIds.current
@@ -97,6 +165,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
   const applyPlan = (p) => {
     const r = p.request || {};
     restoreIds.current = r.studentIds || null;
+    if (r.studentIds) {
+      selectionInitialized.current = true;
+      selectedRef.current = r.studentIds;
+    }
     P(p);
     S(2);
     if (r.weeks) W(r.weeks);
@@ -157,22 +229,14 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         );
         if (scan) {
           const s = await get(api + (worklog ? "/scans/" : "/rosters/") + scan);
-          if (alive.current && !s.expired && (worklog || s.entry === entry)) {
+          if (alive.current && (worklog || s.entry === entry)) {
             applySnapshot(s);
-            if (!worklog) W(s.weeks);
+            if (!worklog && s.weeks) W(s.weeks);
           }
         }
       } catch (e) {
-        if (
-          alive.current &&
-          ![
-            "PLAN_EXPIRED",
-            "ACADEMIC_SNAPSHOT_EXPIRED",
-            "ACADEMIC_SNAPSHOT_NOT_FOUND",
-            "WORKLOG_SNAPSHOT_NOT_FOUND",
-          ].includes(e.code)
-        )
-          E(e);
+        if (alive.current && needsRosterReload(e)) await recoverSnapshot();
+        else if (alive.current) E(e);
       } finally {
         if (alive.current) Y(false);
       }
@@ -204,6 +268,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         if (!stopped) timer = setTimeout(poll, 1400);
       } catch (e) {
         if (!stopped) {
+          if (needsRosterReload(e)) {
+            await recoverSnapshot();
+            return;
+          }
           E(e);
           timer = setTimeout(poll, 5000);
         }
@@ -215,22 +283,35 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       clearTimeout(timer);
     };
   }, [snapshot?.id, snapshot?.state, plan?.id, plan?.state, foreground]);
+  useEffect(() => {
+    if (pendingReload.current && school.hasActiveSession) {
+      pendingReload.current = false;
+      void recoverSnapshot();
+    }
+  }, [school.hasActiveSession]);
+  useEffect(() => {
+    if (!foreground || snapshot?.state !== "ready" || !snapshot.expiresAt)
+      return;
+    const expiry = Date.parse(snapshot.expiresAt);
+    if (!Number.isFinite(expiry)) return;
+    const timer = setTimeout(
+      () => void recoverSnapshot(),
+      Math.max(0, expiry - Date.now() + 30),
+    );
+    return () => clearTimeout(timer);
+  }, [foreground, snapshot?.id, snapshot?.state, snapshot?.expiresAt]);
   const load = () =>
     run(async () => {
-      const r = await post(
-        api + (worklog ? "/scan" : "/rosters"),
-        worklog ? {} : { weeks, entry },
-      );
-      await cacheWrite(
-        worklog ? "worklogScanId" : "academicScanId",
-        r.snapshotId,
-      );
-      Z({ id: r.snapshotId, state: "scanning", students: [] });
+      NT(null);
+      await beginRead();
     });
   const preview = () =>
     run(async () => {
-      if (snapshot?.state !== "ready" || snapshot.expired)
-        throw Error("请先返回范围，重新读取名单");
+      if (snapshotIsExpired(snapshot)) {
+        await recoverSnapshot();
+        return;
+      }
+      if (snapshot?.state !== "ready") throw Error("名单正在读取，请稍候");
       if (!ids.length) throw Error("请至少选择一位学生");
       const r = await post(api + "/preview", {
         snapshotId: snapshot.id,
@@ -276,7 +357,8 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       await currentPlan(null);
       navigation.replace("Progress", { taskUuid: r.taskUuid });
     });
-  const rosterReady = snapshot?.state === "ready" && !snapshot.expired,
+  const rosterReady =
+      snapshot?.state === "ready" && !snapshotIsExpired(snapshot),
     students = snapshot?.students || [],
     footer = school.hasActiveSession ? (
       <>
@@ -290,7 +372,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                   ? "查看已提交任务"
                   : `确认实际记录并录入 ${plan?.summary?.planned || 0} 项`
           }
-          loading={busy}
+          loading={busy || hydrating}
           disabled={
             step === 0
               ? hydrating || !rosterReady || !ids.length
@@ -343,6 +425,11 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           {!worklog && entry === "automatic" ? " · 奇数周陪伴，偶数周谈话" : ""}
         </Body>
       </View>
+      {notice && (
+        <Card style={{ backgroundColor: colors.tint }}>
+          <Body>{notice}</Body>
+        </Card>
+      )}
       <ErrorBox
         error={error}
         onLogin={

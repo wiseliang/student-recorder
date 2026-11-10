@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, Pressable } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import React, { useState, useCallback, useEffect } from "react";
+import { View, Text, Pressable, Modal } from "react-native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
   Page,
   Card,
@@ -19,7 +19,15 @@ import { useSchool, openSchool } from "../state/SchoolContext";
 import { get, currentPlan } from "../utils/api";
 import { statusLabel, taskTitle } from "../utils/presentation";
 export default function HomeScreen({ navigation }) {
-  const { school, refresh } = useSchool(),
+  const {
+      school,
+      refresh,
+      error: schoolError,
+      connectionPrompted,
+      markConnectionPrompted,
+    } = useSchool(),
+    focused = useIsFocused(),
+    [prompt, V] = useState(false),
     [active, A] = useState(null),
     [saved, S] = useState(null),
     [error, E] = useState(null);
@@ -40,12 +48,61 @@ export default function HomeScreen({ navigation }) {
       };
     }, []),
   );
+  useEffect(() => {
+    if (
+      focused &&
+      !school.loading &&
+      !school.hasActiveSession &&
+      !schoolError &&
+      !connectionPrompted
+    ) {
+      markConnectionPrompted(true);
+      V(true);
+    }
+  }, [
+    focused,
+    school.loading,
+    school.hasActiveSession,
+    schoolError,
+    connectionPrompted,
+  ]);
   const enter = (screen, params) =>
     school.hasActiveSession
       ? navigation.navigate(screen, params)
       : openSchool(navigation, { screen, params });
   return (
     <Page>
+      <Modal
+        visible={prompt && focused && !school.hasActiveSession}
+        transparent
+        animationType="fade"
+        onRequestClose={() => V(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            padding: 24,
+            backgroundColor: "#12325288",
+          }}
+        >
+          <Card>
+            <Icon name="school-outline" size={32} />
+            <Title>先连接学校账号</Title>
+            <Body>
+              连接后可同步校历、读取名单，并在各个录入流程中共用学校连接。
+            </Body>
+            <Button
+              title="去连接学校账号"
+              onPress={() => {
+                V(false);
+                openSchool(navigation);
+              }}
+            />
+            <Button title="稍后连接" secondary onPress={() => V(false)} />
+          </Card>
+        </View>
+      </Modal>
       <View
         style={{
           flexDirection: "row",
@@ -90,8 +147,8 @@ export default function HomeScreen({ navigation }) {
             alignItems: "center",
           }}
         >
-          <Text style={{ fontSize: 14, color: "#D3E8E1" }}>本周校历</Text>
-          <Icon name="calendar-outline" color="#CBE4DC" size={23} />
+          <Text style={{ fontSize: 14, color: "#DCEBFA" }}>本周校历</Text>
+          <Icon name="calendar-outline" color="#DCEBFA" size={23} />
         </View>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
           <Text
@@ -107,14 +164,14 @@ export default function HomeScreen({ navigation }) {
               : "学期周次"}
           </Text>
         </View>
-        <Text style={{ fontSize: 14, color: "#D3E8E1", lineHeight: 22 }}>
+        <Text style={{ fontSize: 14, color: "#DCEBFA", lineHeight: 22 }}>
           {school.calendar
             ? `${school.calendar.academicYear}学年 · ${school.calendar.semester} · ${school.calendar.weekRange}`
             : "连接学校后自动同步当前学期"}
         </Text>
       </View>
       {active && (
-        <Card style={{ borderColor: "#BFD8CD" }}>
+        <Card style={{ borderColor: "#C6D9EC" }}>
           <View
             style={{ flexDirection: "row", justifyContent: "space-between" }}
           >

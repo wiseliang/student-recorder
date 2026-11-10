@@ -54,7 +54,7 @@ export function CalendarModal({
         style={{
           flex: 1,
           justifyContent: "flex-end",
-          backgroundColor: "#142F2944",
+          backgroundColor: "#12325255",
         }}
       >
         <SafeAreaView
@@ -161,7 +161,7 @@ export function CalendarModal({
                       style={{
                         fontSize: 16,
                         color: disabled
-                          ? "#BBC6BF"
+                          ? "#B8C6D4"
                           : chosen
                             ? "#FFF"
                             : colors.ink,
@@ -314,7 +314,7 @@ export function TimeField({ label, value, onChange }) {
             <View
               style={{
                 flex: 1,
-                backgroundColor: "#142F2944",
+                backgroundColor: "#12325255",
                 justifyContent: "center",
                 padding: 32,
               }}
@@ -329,7 +329,7 @@ export function TimeField({ label, value, onChange }) {
                     fontSize: 22,
                     padding: 14,
                     borderRadius: 12,
-                    border: "1px solid #DEE7E1",
+                    border: "1px solid #D9E4F0",
                     fontFamily: "inherit",
                   },
                 })}

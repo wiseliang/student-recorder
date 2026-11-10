@@ -10,7 +10,8 @@ import { get, onSchoolExpired } from "../utils/api";
 const SchoolContext = createContext(null);
 export function SchoolProvider({ children }) {
   const [school, S] = useState({ loading: true, hasActiveSession: false }),
-    [error, E] = useState(null);
+    [error, E] = useState(null),
+    [connectionPrompted, markConnectionPrompted] = useState(false);
   const refresh = useCallback(async () => {
     try {
       const state = await get("/api/auth/session-status");
@@ -42,7 +43,16 @@ export function SchoolProvider({ children }) {
     await refresh();
   };
   return (
-    <SchoolContext.Provider value={{ school, error, refresh, connected }}>
+    <SchoolContext.Provider
+      value={{
+        school,
+        error,
+        refresh,
+        connected,
+        connectionPrompted,
+        markConnectionPrompted,
+      }}
+    >
       {children}
     </SchoolContext.Provider>
   );

@@ -14,17 +14,17 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 export const colors = {
-  ink: "#172F3D",
-  muted: "#607268",
-  primary: "#176B62",
+  ink: "#172C42",
+  muted: "#60758B",
+  primary: "#1B62A5",
   surface: "#FFFFFF",
-  background: "#F2F5F3",
-  line: "#DEE7E1",
+  background: "#EDF4FC",
+  line: "#D9E4F0",
   danger: "#AB2836",
   success: "#236A43",
   warning: "#8B5A12",
-  tint: "#E3EFEB",
-  soft: "#F7F9F7",
+  tint: "#E3EFFA",
+  soft: "#F7FAFE",
 };
 export const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
@@ -43,7 +43,7 @@ export const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
     borderWidth: 1,
-    borderColor: "#E8EEE9",
+    borderColor: "#E4ECF5",
   },
   title: {
     fontSize: 28,
@@ -292,7 +292,7 @@ export function Field({ label, helper, error, style, ...props }) {
           error && { borderColor: colors.danger },
           style,
         ]}
-        placeholderTextColor="#87958D"
+        placeholderTextColor="#8194A8"
         autoCapitalize="none"
         autoCorrect={false}
         {...props}
@@ -317,7 +317,7 @@ export function Choice({ label, selected, onPress, detail, disabled = false }) {
     >
       <Icon
         name={selected ? "checkbox" : "square-outline"}
-        color={selected ? colors.primary : "#A6B6AB"}
+        color={selected ? colors.primary : "#A8B8C9"}
         size={23}
       />
       <View style={{ flex: 1, gap: 3 }}>
@@ -427,7 +427,7 @@ export function RowLink({
         </Text>
         {detail && <Text style={styles.muted}>{detail}</Text>}
       </View>
-      {accessory || <Icon name="chevron-forward" size={18} color="#8B9D91" />}
+      {accessory || <Icon name="chevron-forward" size={18} color="#8296AA" />}
     </Pressable>
   );
 }

@@ -2,13 +2,13 @@
   "expo": {
     "name": "学工录入助手",
     "slug": "student-recorder",
-    "version": "1.4.0",
+    "version": "1.4.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "backgroundColor": "#176B62"
+      "backgroundColor": "#1B62A5"
     },
     "ios": {
       "supportsTablet": false
@@ -16,9 +16,9 @@
     "android": {
       "package": "com.wiseliang.studentrecorder",
       "adaptiveIcon": {
-        "backgroundColor": "#176B62"
+        "backgroundColor": "#1B62A5"
       },
-      "versionCode": 5
+      "versionCode": 6
     },
     "extra": {
       "eas": {
