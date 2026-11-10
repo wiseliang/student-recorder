@@ -20,6 +20,22 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
+      - name: Set up pinned Android SDK command tools
+        shell: bash
+        run: |
+          sdk_dir="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$sdk_dir/cmdline-tools"
+          curl -fL --retry 3 https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip -o "$RUNNER_TEMP/android-tools.zip"
+          unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$sdk_dir/cmdline-tools"
+          mv "$sdk_dir/cmdline-tools/cmdline-tools" "$sdk_dir/cmdline-tools/latest"
+          echo "ANDROID_HOME=$sdk_dir" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_dir" >> "$GITHUB_ENV"
+          echo "$sdk_dir/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          python3 - "$sdk_dir" <<'PYTHON'
+          import subprocess,sys
+          sdk=sys.argv[1]
+          subprocess.run([sdk+'/cmdline-tools/latest/bin/sdkmanager','--sdk_root='+sdk,'--licenses'],input='y\n'*200,text=True,check=True)
+          PYTHON
       - name: Install Android components
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;26.1.10909125' 'cmake;3.22.1'
       - name: Build signed standalone release APK
