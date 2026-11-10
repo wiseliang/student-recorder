@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-// Cloudflare Tunnel URL（服务器重启后会变，需同步更新）
-export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://terrorists-solaris-trail-care.trycloudflare.com'
+// Fixed HTTPS reverse proxy on the local deployment server.
+export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://wiseliang.cloud/student-recorder'
 // 原直连: 'https://118.190.208.230'
 
 const REQUEST_TIMEOUT_MS = 15000
@@ -10,9 +10,12 @@ const LOGIN_TIMEOUT_MS = 45000  // Login flows need more time (browser nav + SSO
 async function request(method, path, data) {
   const openid = await AsyncStorage.getItem('openid')
   const headers = { 'Content-Type': 'application/json' }
-  if (openid) headers['x-openid'] = openid
+  const server = await AsyncStorage.getItem('authServer')
   const token = await AsyncStorage.getItem('authToken')
-  if (token) headers.Authorization = 'Bearer ' + token
+  if (server === BASE_URL) {
+    if (openid) headers['x-openid'] = openid
+    if (token) headers.Authorization = 'Bearer ' + token
+  }
 
   // Login/auth endpoints need longer timeout for browser navigation
   const isAuthEndpoint = path.includes('/api/auth/')

@@ -1,0 +1,35 @@
+name: Build test APK
+on:
+  push:
+    branches: [fix/session-auth-week-and-startup]
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - name: Install Android components
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;26.1.10909125' 'cmake;3.22.1'
+      - name: Build signed standalone release APK
+        working-directory: android
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://wiseliang.cloud/student-recorder
+        run: bash gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --max-workers=2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: student-recorder-apk
+          path: android/app/build-final/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7

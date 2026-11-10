@@ -11,7 +11,7 @@ import ResultScreen from './screens/ResultScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import WeekSettingsScreen from './screens/WeekSettingsScreen'
 import HistoryScreen from './screens/HistoryScreen'
-import { post } from './utils/api'
+import { post, BASE_URL } from './utils/api'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -72,7 +72,7 @@ export default function App() {
     try {
       const data = await post('/api/auth/login', { platform: 'android' })
       if (!data.openid || !data.token) throw new Error('登录响应无效，请更新服务端')
-      await AsyncStorage.multiSet([['openid', data.openid], ['authToken', data.token]])
+      await AsyncStorage.multiSet([['openid', data.openid], ['authToken', data.token], ['authServer', BASE_URL]])
     } catch (e) {
       setInitError(e.message || '无法连接服务器')
     } finally {

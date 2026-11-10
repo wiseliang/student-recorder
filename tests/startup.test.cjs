@@ -9,7 +9,7 @@ const start=source.indexOf('  const initOpenid = async () => {')
 const init=source.slice(start,source.indexOf('\n  if (ready && initError)',start)).replace('const initOpenid','globalThis.initOpenid')
 async function run(post,storage={}) {
   const state={ready:null,error:null,values:null}
-  const context={post,AsyncStorage:{multiSet:async values=>{state.values=values},...storage},setReady:v=>state.ready=v,setInitError:v=>state.error=v}
+  const context={post,BASE_URL:'https://example.invalid',AsyncStorage:{multiSet:async values=>{state.values=values},...storage},setReady:v=>state.ready=v,setInitError:v=>state.error=v}
   vm.createContext(context);vm.runInContext(init,context);await context.initOpenid()
   return state
 }
@@ -33,7 +33,7 @@ test('API exports address and sends bearer token with requests',async()=>{
   const input=fs.readFileSync(path.join(__dirname,'../src/utils/api.js'),'utf8')
   const transformed=babel.transformSync(input,{filename:'api.js',configFile:false,babelrc:false,plugins:['@babel/plugin-transform-modules-commonjs']}).code
   const exports={};let sent
-  const context={exports,require:()=>({getItem:async key=>key==='openid'?'android_test':'signed-session'}),process:{env:{EXPO_PUBLIC_API_BASE_URL:'https://example.invalid'}},setTimeout,clearTimeout,AbortController,URLSearchParams,fetch:async(url,options)=>{sent={url,options};return {ok:true,json:async()=>({success:true})}}}
+  const context={exports,require:()=>({getItem:async key=>key==='openid'?'android_test':key==='authServer'?'https://example.invalid':'signed-session'}),process:{env:{EXPO_PUBLIC_API_BASE_URL:'https://example.invalid'}},setTimeout,clearTimeout,AbortController,URLSearchParams,fetch:async(url,options)=>{sent={url,options};return {ok:true,json:async()=>({success:true})}}}
   vm.runInNewContext(transformed,context)
   assert.equal(exports.BASE_URL,'https://example.invalid')
   await exports.post('/api/auth/login',{platform:'android'})

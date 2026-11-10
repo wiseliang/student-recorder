@@ -9,7 +9,9 @@ const TYPE_NAMES = { companion: '录入陪伴', talk: '录入谈话', batch: '�
 
 export default function RecordScreen({ route, navigation }) {
   const { type, week } = route.params
-  const currentWeek = week || 1
+  const [currentWeek, setCurrentWeek] = useState(week || 1)
+  const [calendar, setCalendar] = useState(null)
+  const [calendarError, setCalendarError] = useState('')
   const weeks = Array.from({ length: currentWeek }, (_, i) => ({
     val: i + 1, checked: i + 1 === currentWeek,
     hint: (i + 1) % 2 === 1 ? '陪伴' : '谈话'
@@ -50,6 +52,21 @@ export default function RecordScreen({ route, navigation }) {
   const [recording, setRecording] = useState(false)
 
   const openid = () => AsyncStorage.getItem('openid')
+
+  const syncCalendar = async () => {
+    setCalendarError('')
+    try {
+      const c = await get('/api/auth/academic-calendar')
+      if (!c.verified) throw new Error('学校学期尚未核验')
+      setCalendar(c)
+      setCurrentWeek(c.week)
+      setWeekList(c.weeks.map(w => ({val:w.week,range:w.range,checked:w.week===c.week,hint:w.week%2===1?'陪伴':'谈话'})))
+      setStudents([])
+      return true
+    } catch (e) { setCalendar(null); setCalendarError(e.message); return false }
+  }
+
+  useEffect(() => { if (loginStep === 'done') syncCalendar() }, [loginStep])
 
   // Check credentials + active session on mount
   useEffect(() => {
@@ -174,6 +191,7 @@ export default function RecordScreen({ route, navigation }) {
     setLoadingStudents(true)
     try {
       const w = weekList.find(w => w.checked)?.val || currentWeek
+      if (!calendar) throw new Error('请先同步学校学期')
       const res = await get('/api/auth/student-list', { week: w })
       setStudents((res.students || []).map(s => ({ ...s, _checked: true, _hasRecord: false })))
     } catch (e) { Alert.alert('加载失败', e.message) }
@@ -224,10 +242,13 @@ export default function RecordScreen({ route, navigation }) {
   }
 
   const startRecord = async () => {
-    setRecording(true)
+    if (!calendar?.verified) return Alert.alert('请先同步学校学期')
     const selectedWeeks = weekList.filter(w => w.checked).map(w => w.val)
     const selectedStudents = students.filter(s => s._checked)
-    const opts = {}
+    if (!selectedWeeks.length) return Alert.alert('请选择至少一周')
+    if (!students.length || !selectedStudents.length) return Alert.alert('请先加载并选择学生')
+    setRecording(true)
+    const opts = { calendarStartDate: calendar.startDate }
     if (type === 'companion') { opts.pbType = pbType; if (contentText) opts.content = contentText }
     else if (type === 'talk') { opts.scene = scene; if (contentText) opts.content = contentText }
     if (selectedStudents.length < students.length) opts.studentIndices = selectedStudents.map(s => s.index)
@@ -242,7 +263,11 @@ export default function RecordScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }} nestedScrollEnabled={true}>
       <Text style={styles.title}>{TYPE_NAMES[type]}</Text>
-      {type !== 'batch' && type !== 'fill-missing' && <Text style={styles.subtitle}>第{week}周</Text>}
+      {type !== 'batch' && type !== 'fill-missing' && <Text style={styles.subtitle}>第{currentWeek}周</Text>}
+
+      {calendar && <Text style={styles.subtitle}>{calendar.academicYear}学年 · {calendar.semester} · 学校当前第{calendar.week}周</Text>}
+      {!!calendarError && <Text style={{color:'#b91c1c',marginBottom:12}}>{calendarError}</Text>}
+      {loginStep === 'done' && <TouchableOpacity onPress={syncCalendar}><Text style={{color:'#1B62A5',marginBottom:12}}>重新同步学校学期</Text></TouchableOpacity>}
 
       {/* Login section */}
       {loginStep !== 'done' ? (
@@ -341,7 +366,7 @@ export default function RecordScreen({ route, navigation }) {
             </View>
             {weekList.map(w => (
               <TouchableOpacity key={w.val} style={[styles.weekCheckRow, w.checked && styles.weekCheckRowActive]} onPress={() => toggleWeek(w.val)}>
-                <Text style={styles.checkLabel}>{w.checked ? '☑' : '☐'} 第{w.val}周</Text>
+                <Text style={styles.checkLabel}>{w.checked ? '☑' : '☐'} 第{w.val}周{w.range ? ` ${w.range}` : ''}</Text>
                 <Text style={styles.hintText}>{w.hint}</Text>
               </TouchableOpacity>
             ))}
