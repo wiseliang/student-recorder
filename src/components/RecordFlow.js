@@ -55,11 +55,13 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     [target, TG] = useState("1"),
     [plan, P] = useState(null),
     [error, E] = useState(null),
-    [busy, B] = useState(false);
+    [busy, B] = useState(false),
+    [hydrating, Y] = useState(true);
   const foreground = useForeground(),
     alive = useRef(true),
     lock = useRef(false),
     latest = useRef(null),
+    restoreIds = useRef(null),
     today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Shanghai",
     });
@@ -83,8 +85,33 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     Z(s);
     if (s.state === "ready" && latest.current !== s.id) {
       latest.current = s.id;
-      I(s.students.map((x) => x.studentId));
+      const valid = s.students.map((x) => x.studentId);
+      I(
+        restoreIds.current
+          ? restoreIds.current.filter((id) => valid.includes(id))
+          : valid,
+      );
+      restoreIds.current = null;
     }
+  };
+  const applyPlan = (p) => {
+    const r = p.request || {};
+    restoreIds.current = r.studentIds || null;
+    P(p);
+    S(2);
+    if (r.weeks) W(r.weeks);
+    if (r.studentIds) I(r.studentIds);
+    C(r.content || "");
+    D(String(r.durationMinutes || 10));
+    M(r.method || "面对面");
+    SC(r.scene || "其他");
+    PB(r.pbType || "共同上课");
+    if (r.shifts) H(r.shifts);
+    X(r.excludeDates || []);
+    if (r.fromDate) F(r.fromDate);
+    if (r.toDate) T(r.toDate);
+    SK(r.skipRecorded !== false);
+    TG(String(r.targetCount || 1));
   };
   useEffect(() => {
     if (calendar) {
@@ -108,8 +135,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             "/api/task/" + route.params.retryTaskUuid + "/retry-plan",
           );
           if (alive.current) {
-            P(p);
-            S(2);
+            applyPlan(p);
             await currentPlan(p.id);
           }
           return;
@@ -123,8 +149,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
               ? p.request?.recordType === "worklog-talk"
               : p.request?.scope === "academic" && p.request.entry === entry)
           ) {
-            P(p);
-            S(2);
+            applyPlan(p);
           }
         }
         const scan = await cacheRead(
@@ -148,6 +173,8 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           ].includes(e.code)
         )
           E(e);
+      } finally {
+        if (alive.current) Y(false);
       }
     })();
     return () => {
@@ -202,6 +229,8 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     });
   const preview = () =>
     run(async () => {
+      if (snapshot?.state !== "ready" || snapshot.expired)
+        throw Error("请先返回范围，重新读取名单");
       if (!ids.length) throw Error("请至少选择一位学生");
       const r = await post(api + "/preview", {
         snapshotId: snapshot.id,
@@ -264,9 +293,9 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           loading={busy}
           disabled={
             step === 0
-              ? !rosterReady || !ids.length
+              ? hydrating || !rosterReady || !ids.length
               : step === 1
-                ? false
+                ? !rosterReady || !ids.length
                 : plan?.state !== "ready" || !!plan?.summary?.unconfirmed
           }
           onPress={
@@ -283,7 +312,13 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         {step > 0 && (
           <Button
             secondary
-            title={step === 2 ? "返回规则" : "返回范围"}
+            title={
+              step === 2
+                ? rosterReady
+                  ? "返回规则"
+                  : "重新选择范围"
+                : "返回范围"
+            }
             disabled={busy || plan?.state === "scanning"}
             onPress={() =>
               run(async () => {
@@ -291,7 +326,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                   await currentPlan(null);
                   P(null);
                 }
-                S(step - 1);
+                S(step === 2 && !rosterReady ? 0 : step - 1);
               })
             }
           />
@@ -395,7 +430,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                 <Button
                   title={rosterReady ? "重新读取名单" : "读取名单与已有记录"}
                   secondary
-                  loading={busy || snapshot?.state === "scanning"}
+                  loading={busy || hydrating || snapshot?.state === "scanning"}
                   disabled={
                     !school.hasActiveSession || (!worklog && !weeks.length)
                   }
