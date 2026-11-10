@@ -299,7 +299,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       </>
     ) : null;
   return (
-    <Page footer={footer}>
+    <Page key={step} footer={footer}>
       <StepHeader steps={["选择范围", "设置规则", "核对录入"]} current={step} />
       <View style={{ gap: 6 }}>
         <Title>{label}</Title>
