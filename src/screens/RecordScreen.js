@@ -60,8 +60,9 @@ export default function RecordScreen({ route, navigation }) {
       if (!c.verified) throw new Error('学校学期尚未核验')
       setCalendar(c)
       setCurrentWeek(c.week)
-      setWeekList(c.weeks.map(w => ({val:w.week,range:w.range,checked:w.week===c.week,hint:w.week%2===1?'陪伴':'谈话'})))
+      setWeekList(c.weeks.map(w => ({val:w.week,range:w.range,checked:false,hint:w.week%2===1?'陪伴':'谈话'})))
       setStudents([])
+      setWeekAllChecked(false)
       return true
     } catch (e) { setCalendar(null); setCalendarError(e.message); return false }
   }
@@ -193,7 +194,7 @@ export default function RecordScreen({ route, navigation }) {
       const w = weekList.find(w => w.checked)?.val || currentWeek
       if (!calendar) throw new Error('请先同步学校学期')
       const res = await get('/api/auth/student-list', { week: w })
-      setStudents((res.students || []).map(s => ({ ...s, _checked: true, _hasRecord: false })))
+      setStudents((res.students || []).map(s => ({ ...s, _checked: false, _hasRecord: false })))
     } catch (e) { Alert.alert('加载失败', e.message) }
     finally { setLoadingStudents(false) }
   }
@@ -203,11 +204,11 @@ export default function RecordScreen({ route, navigation }) {
 
   const toggleWeek = (val) => {
     const next = weekList.map(w => w.val === val ? { ...w, checked: !w.checked } : w)
-    setWeekList(next); setWeekAllChecked(next.every(w => w.checked))
+    setWeekList(next); setWeekAllChecked(next.every(w => w.checked)); setStudents([])
   }
   const toggleAllWeeks = () => {
     const all = !weekAllChecked
-    setWeekList(weekList.map(w => ({ ...w, checked: all }))); setWeekAllChecked(all)
+    setWeekList(weekList.map(w => ({ ...w, checked: all }))); setWeekAllChecked(all); setStudents([])
   }
   const toggleStudent = (idx) => {
     setStudents(students.map(s => s.index === idx ? { ...s, _checked: !s._checked } : s))
@@ -251,7 +252,8 @@ export default function RecordScreen({ route, navigation }) {
     const opts = { calendarStartDate: calendar.startDate }
     if (type === 'companion') { opts.pbType = pbType; if (contentText) opts.content = contentText }
     else if (type === 'talk') { opts.scene = scene; if (contentText) opts.content = contentText }
-    if (selectedStudents.length < students.length) opts.studentIndices = selectedStudents.map(s => s.index)
+    if (selectedStudents.some(s => !s.studentId)) { setRecording(false); return Alert.alert('学生学号缺失，请重新加载名单') }
+    opts.studentIds = selectedStudents.map(s => s.studentId)
     if (selectedWeeks.length > 0) opts.weeks = selectedWeeks
     try {
       const res = await post('/api/task/create', { openid: await openid(), type, week: type === 'batch' || type === 'fill-missing' ? 0 : (selectedWeeks[0] || 1), options: opts })
@@ -263,7 +265,7 @@ export default function RecordScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }} nestedScrollEnabled={true}>
       <Text style={styles.title}>{TYPE_NAMES[type]}</Text>
-      {type !== 'batch' && type !== 'fill-missing' && <Text style={styles.subtitle}>第{currentWeek}周</Text>}
+      {type !== 'batch' && type !== 'fill-missing' && <Text style={styles.subtitle}>当前第{currentWeek}周，请在下方选择录入周次</Text>}
 
       {calendar && <Text style={styles.subtitle}>{calendar.academicYear}学年 · {calendar.semester} · 学校当前第{calendar.week}周</Text>}
       {!!calendarError && <Text style={{color:'#b91c1c',marginBottom:12}}>{calendarError}</Text>}
@@ -372,7 +374,7 @@ export default function RecordScreen({ route, navigation }) {
             ))}
           </View>
 
-          {type !== 'fill-missing' && (
+          {(
             <View style={styles.card}>
               <View style={styles.headerRow}>
                 <Text style={styles.cardTitle}>👥 学生列表</Text>

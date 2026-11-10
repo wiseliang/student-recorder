@@ -18,6 +18,8 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm test
       - name: Set up pinned Android SDK command tools
