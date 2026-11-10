@@ -329,3 +329,13 @@ test("result labels distinguish unarranged, not yet due and uncertain saves", ()
   );
   assert.match(operationLabel({ status: "unconfirmed" }), /待回查/);
 });
+
+test('login completion waits for the pre-login status read before fetching the fresh connection',async()=>{
+ let calls=0,release;const old=new Promise(r=>release=r),states=[];
+ const react={createContext:()=>({Provider:'provider'}),useState:(value)=>{const i=states.length;states.push(value);return [value,next=>{states[i]=typeof next==='function'?next(states[i]):next}]},useRef:value=>({current:value}),useCallback:fn=>fn,useEffect:()=>{},createElement:(_component,props)=>props};
+ const code=babel.transformSync(fs.readFileSync(path.join(__dirname,'../src/state/SchoolContext.js'),'utf8'),{configFile:false,babelrc:false,plugins:['@babel/plugin-transform-modules-commonjs','@babel/plugin-transform-react-jsx']}).code,exports={};
+ vm.runInNewContext(code,{exports,require:n=>n==='react'?react:n==='react-native'?{AppState:{}}:{get:async()=>++calls===1?old:{hasActiveSession:true,calendar:{startDate:'2026-08-31'}},onSchoolExpired:()=>{}},Date});
+ const {value}=exports.SchoolProvider({children:null});const stale=value.refresh(),connected=value.connected({startDate:'2026-08-31'});
+ assert.equal(calls,1);release({hasActiveSession:false});await stale;await connected;
+ assert.equal(calls,2);assert.equal(states[0].hasActiveSession,true);assert.equal(states[0].loading,false);
+});
