@@ -170,6 +170,15 @@ export default function HomeScreen({ navigation }) {
             : "连接学校后自动同步当前学期"}
         </Text>
       </View>
+      <Card style={{ paddingVertical: 6 }}>
+        <RowLink
+          title="学期总览"
+          icon="stats-chart-outline"
+          detail="学校次数与轮次 · 分别查看两类名单"
+          last
+          onPress={() => navigation.navigate("Overview")}
+        />
+      </Card>
       {active && (
         <Card style={{ borderColor: "#C6D9EC" }}>
           <View
@@ -213,7 +222,7 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
           <Body muted>
-            第 1 周陪伴、第 2 周谈话，依次交替。已有对应记录会跳过。
+            按周交替优先，补足学校次数与未完成轮次；已有且达标的项目跳过。
           </Body>
           <Button
             title="开始一键录入"

@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { View, StatusBar } from "react-native";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SchoolProvider } from "./state/SchoolContext";
+import OverviewScreen from "./screens/OverviewScreen";
 import HomeScreen from "./screens/HomeScreen";
 import RecordScreen from "./screens/RecordScreen";
 import WorklogTalkScreen from "./screens/WorklogTalkScreen";
@@ -52,6 +56,7 @@ function Screens({ initial, component }) {
         options={{ headerShown: false }}
       />
       {[
+        ["Overview", OverviewScreen, "学期总览"],
         ["Record", RecordScreen, "学情日志"],
         ["WorklogTalk", WorklogTalkScreen, "工作日志"],
         ["Progress", ProgressScreen, "录入进度"],
@@ -75,7 +80,7 @@ const Home = () => <Screens initial="Home" component={HomeScreen} />,
   History = () => <Screens initial="History" component={HistoryScreen} />,
   Settings = () => <Screens initial="Settings" component={SettingsScreen} />;
 function Root() {
-  const safe=useSafeAreaInsets();
+  const safe = useSafeAreaInsets();
   const [ready, R] = useState(false),
     [busy, B] = useState(false),
     [error, E] = useState(null),
