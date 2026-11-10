@@ -60,9 +60,9 @@ export default function TaskView({ task, navigation }) {
           <Body muted>等待当前记录安全结束，请以最终结果为准。</Body>
         )}
         <Body muted>{dateLabel(task.createdAt)}</Body>
-        {!!task.details?.length && (
+        {!!(task.detailsCount??task.details?.length) && (
           <Button
-            title={`查看 ${task.details.length} 项明细`}
+            title={`查看 ${task.detailsCount??task.details.length} 项明细`}
             secondary
             onPress={() =>
               navigation.navigate("TaskDetails", { taskUuid: task.taskUuid })

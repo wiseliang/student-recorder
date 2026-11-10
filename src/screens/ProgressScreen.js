@@ -23,7 +23,7 @@ export default function ProgressScreen({ route, navigation }) {
       active.current = true;
       const poll = async () => {
         try {
-          const t = await get("/api/task/" + uuid, undefined, {
+          const t = await get("/api/task/" + uuid, {summary:1}, {
             signal: controller.signal,
           });
           if (stopped) return;
