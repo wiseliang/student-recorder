@@ -1,10 +1,28 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
+import * as NativeSecureStore from "expo-secure-store";
+import { Platform } from "react-native";
+const preview =
+  Platform?.OS === "web" && process.env.EXPO_PUBLIC_UI_PREVIEW === "1";
+const SecureStore = {
+  getItemAsync: async (k) =>
+    preview ? sessionStorage.getItem(k) : NativeSecureStore.getItemAsync(k),
+  setItemAsync: async (k, v) =>
+    preview
+      ? sessionStorage.setItem(k, v)
+      : NativeSecureStore.setItemAsync(k, v),
+};
 export const BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   "https://wiseliang.cloud/student-recorder";
 const namespace = BASE_URL.replace(/[^a-zA-Z0-9._-]/g, "_");
 const key = (name) => `recorder.${namespace}.${name}`;
+let schoolListener = () => {};
+export function onSchoolExpired(fn) {
+  schoolListener = fn;
+  return () => {
+    schoolListener = () => {};
+  };
+}
 let refreshFlight = null,
   identityListener = () => {};
 export class ApiError extends Error {
@@ -184,6 +202,11 @@ export async function request(method, path, data, options = {}) {
       timeout: path.includes("/api/auth/") ? 90000 : 30000,
     });
   } catch (error) {
+    if (
+      error.status === 401 &&
+      ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(error.code)
+    )
+      schoolListener(error);
     if (error.status === 401 && error.code === "AUTH_REQUIRED") {
       try {
         const latest = await identity();

@@ -1,3 +1,4 @@
+import { View, Text, Pressable } from "react-native";
 import React, { useCallback, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { get, cacheRead, cacheWrite } from "../utils/api";
@@ -17,6 +18,9 @@ import {
   Field,
   Choice,
   ErrorBox,
+  Pill,
+  EmptyState,
+  colors,
 } from "../components/ui";
 export default function HistoryScreen({ navigation }) {
   const [items, I] = useState([]),
@@ -76,27 +80,51 @@ export default function HistoryScreen({ navigation }) {
       <Title>任务历史</Title>
       <Field label="搜索任务编号、学期或选项" value={search} onChangeText={S} />
       <Button title="搜索 / 刷新" loading={busy} onPress={() => load()} />
-      {[
-        ["", "全部"],
-        ["active", "进行中"],
-        ["completed", "已完成"],
-        ["partial_failed", "部分完成"],
-        ["failed", "失败"],
-        ["interrupted", "中断"],
-        ["cancelled", "取消"],
-      ].map(([v, label]) => (
-        <Choice
-          key={v}
-          label={label}
-          selected={status === v}
-          onPress={() => F(v)}
-        />
-      ))}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {[
+          ["", "全部"],
+          ["active", "进行中"],
+          ["completed", "已完成"],
+          ["partial_failed", "部分完成"],
+          ["failed", "失败"],
+          ["interrupted", "中断"],
+          ["cancelled", "取消"],
+        ].map(([v, label]) => (
+          <Pressable
+            key={v}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            onPress={() => F(v)}
+            style={{
+              minHeight: 44,
+              paddingHorizontal: 16,
+              justifyContent: "center",
+              borderRadius: 12,
+              backgroundColor: status === v ? colors.primary : colors.surface,
+            }}
+          >
+            <Text
+              style={{
+                color: status === v ? "#FFF" : colors.muted,
+                fontSize: 14,
+              }}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       <ErrorBox error={error} onRetry={() => load()} />
       {cached && <Body>当前显示本机缓存，状态可能已变化；联网后刷新。</Body>}
-      {!items.length && !busy && !error && <Body>暂无符合条件的任务。</Body>}
+      {!items.length && !busy && !error && (
+        <EmptyState
+          title="还没有录入记录"
+          description="完成录入后，可在这里查看结果与学校回执。"
+        />
+      )}
       {items.map((t) => (
         <Card key={t.taskUuid}>
+          <Pill>{t.type === "worklog-talk" ? "工作日志管理" : "学情日志"}</Pill>
           <Body>{taskTitle(t)}</Body>
           <Body muted>
             {semesterLabel(t.calendar)} · {dateLabel(t.createdAt)}

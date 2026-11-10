@@ -1,44 +1,36 @@
-import React, { useCallback, useState } from "react";
-import { Text } from "react-native";
+import React, { useState, useCallback } from "react";
+import { View, Text, Alert } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  get,
-  del,
-  getRecoveryKey,
-  rotateRecoveryKey,
-  BASE_URL,
-} from "../utils/api";
-import { VERSION } from "../utils/presentation";
 import {
   Page,
   Card,
   Title,
   Body,
+  RowLink,
+  Icon,
   Button,
+  Pill,
+  SectionHeader,
   ErrorBox,
-  styles,
+  colors,
 } from "../components/ui";
+import { useSchool, openSchool } from "../state/SchoolContext";
+import { get, post, del } from "../utils/api";
+import { VERSION } from "../utils/presentation";
 export default function SettingsScreen({ navigation }) {
-  const [credential, C] = useState(null),
+  const { school, refresh } = useSchool(),
+    [credential, C] = useState(null),
     [error, E] = useState(null),
-    [busy, B] = useState(false),
-    [key, K] = useState(null),
-    [health, H] = useState(null),
-    [confirm, F] = useState(false);
+    [advanced, A] = useState(false),
+    [busy, B] = useState(false);
   useFocusEffect(
     useCallback(() => {
-      let live = true;
-      Promise.all([get("/api/auth/credential"), get("/api/health")])
-        .then(([c, h]) => {
-          if (live) {
-            C(c);
-            H(h);
-            E(null);
-          }
-        })
-        .catch((e) => live && E(e));
+      let alive = true;
+      get("/api/auth/credential")
+        .then((c) => alive && C(c))
+        .catch((e) => alive && E(e));
       return () => {
-        live = false;
+        alive = false;
       };
     }, []),
   );
@@ -47,6 +39,7 @@ export default function SettingsScreen({ navigation }) {
     E(null);
     try {
       await fn();
+      await refresh();
     } catch (e) {
       E(e);
     } finally {
@@ -55,90 +48,129 @@ export default function SettingsScreen({ navigation }) {
   };
   return (
     <Page>
-      <Title>账号与设置</Title>
+      <Title>账号</Title>
       <ErrorBox error={error} />
-      {error?.taskUuid && (
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 19,
+              backgroundColor: colors.tint,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon name="school-outline" size={29} />
+          </View>
+          <View style={{ flex: 1, gap: 7 }}>
+            <Text
+              style={{ fontSize: 20, fontWeight: "500", color: colors.ink }}
+            >
+              {school.profile || "学校账号"}
+            </Text>
+            <Pill tone={school.hasActiveSession ? "success" : "neutral"}>
+              {school.hasActiveSession ? "已连接" : "未连接"}
+            </Pill>
+          </View>
+        </View>
+        <Body muted>
+          {school.hasActiveSession
+            ? "学校连接供所有业务页共用，最长保留 24 小时。"
+            : "连接后可录入学情日志、工作日志，并同步校历。"}
+        </Body>
         <Button
-          title="先查看进行中的任务"
+          title={school.hasActiveSession ? "切换学校账号" : "连接学校账号"}
+          secondary={school.hasActiveSession}
+          icon="log-in-outline"
           onPress={() =>
-            navigation.navigate("Progress", { taskUuid: error.taskUuid })
+            openSchool(navigation, undefined, school.hasActiveSession)
           }
         />
-      )}
-      <Card>
-        <Body>
-          学校凭证：
-          {credential?.hasCredential
-            ? "服务器已加密保存 · " + credential.maskedId
-            : "尚未保存"}
-        </Body>
-        <Body muted>学校账号是否可用，以录入前学校验证为准。</Body>
-        <Button
-          title="验证 / 更换学校账号"
-          secondary
-          onPress={() => navigation.navigate("Record")}
-        />
-        <Button
-          title="删除服务器学校凭证和会话"
-          danger
-          loading={busy}
-          onPress={() =>
-            run(async () => {
-              await del("/api/auth/credential");
-              C({ hasCredential: false });
-            })
-          }
-        />
-        <Body muted>
-          删除后保留本机身份和任务历史；存在录入任务时需先停止任务。
-        </Body>
-      </Card>
-      <Card>
-        <Body>身份恢复码</Body>
-        <Body muted>
-          请在换机、卸载前备份。持有恢复码可恢复本账户历史，请私密保存。恢复到新设备会撤销原设备登录。
-        </Body>
-        {key && (
-          <Text selectable accessibilityLabel="身份恢复码" style={styles.body}>
-            {key}
-          </Text>
+        {credential?.hasCredential && (
+          <Body muted>已保存账号 {credential.maskedId}</Body>
         )}
-        <Button
-          title={key ? "隐藏恢复码" : "显示本机恢复码，长按复制"}
-          secondary
-          onPress={() =>
-            run(async () => K(key ? null : await getRecoveryKey()))
-          }
-        />
-        {confirm ? (
-          <>
-            <Body>重新生成后原恢复码立即失效，请保存新码。</Body>
-            <Button
-              title="确认生成新恢复码"
-              loading={busy}
+      </Card>
+      <View style={{ gap: 12 }}>
+        <SectionHeader title="学校数据" />
+        <Card style={{ paddingVertical: 6 }}>
+          <RowLink
+            title="学期与周次"
+            icon="calendar-outline"
+            detail={
+              school.calendar
+                ? `${school.calendar.academicYear} · ${school.calendar.semester}`
+                : "连接后自动同步"
+            }
+            onPress={() => navigation.navigate("WeekSettings")}
+          />
+          <RowLink
+            title="同步连接状态"
+            icon="sync-outline"
+            detail="复用已保存的连接"
+            last
+            onPress={() => run(refresh)}
+          />
+        </Card>
+      </View>
+      <View style={{ gap: 12 }}>
+        <SectionHeader title="更多设置" />
+        <Card style={{ paddingVertical: 6 }}>
+          <RowLink
+            title="高级设置"
+            icon="options-outline"
+            detail="数据迁移、凭证管理与连接诊断"
+            last
+            onPress={() => A(!advanced)}
+          />
+        </Card>
+        {advanced && (
+          <Card style={{ paddingVertical: 6 }}>
+            <RowLink
+              title="迁移与恢复"
+              icon="key-outline"
+              detail="换机或重装时使用"
+              onPress={() => navigation.navigate("Recovery")}
+            />
+            <RowLink
+              title="断开学校连接"
+              icon="log-out-outline"
+              detail="保留任务历史与已保存账号"
+              onPress={() => run(() => post("/api/auth/release"))}
+            />
+            <RowLink
+              title="删除已保存学校凭证"
+              icon="trash-outline"
+              detail="下次连接时重新填写密码"
+              danger
+              last
               onPress={() =>
-                run(async () => {
-                  K(await rotateRecoveryKey());
-                  F(false);
-                })
+                Alert.alert(
+                  "删除学校凭证",
+                  "保存的密码与学校连接将清除，任务历史保留。",
+                  [
+                    { text: "保留", style: "cancel" },
+                    {
+                      text: "删除",
+                      style: "destructive",
+                      onPress: () =>
+                        run(async () => {
+                          await del("/api/auth/credential");
+                          C({ hasCredential: false });
+                        }),
+                    },
+                  ],
+                )
               }
             />
-            <Button title="保留原恢复码" secondary onPress={() => F(false)} />
-          </>
-        ) : (
-          <Button title="重新生成恢复码" secondary onPress={() => F(true)} />
+          </Card>
         )}
-      </Card>
-      <Card>
-        <Button
-          title="查看学校学期与周次"
-          secondary
-          onPress={() => navigation.navigate("WeekSettings")}
-        />
-        <Body>学工录入助手 {VERSION}</Body>
-        <Body muted>服务端 {health?.version || "尚未连接"}</Body>
-        <Body muted>{BASE_URL}</Body>
-      </Card>
+      </View>
+      {busy && <Body muted>正在更新…</Body>}
+      <Body muted style={{ textAlign: "center", paddingVertical: 12 }}>
+        学工录入助手 {VERSION}
+      </Body>
     </Page>
   );
 }

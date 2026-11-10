@@ -3,7 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { get, post } from "../utils/api";
 import { ACTIVE } from "../utils/presentation";
 import { Page, Card, Body, Button, ErrorBox } from "../components/ui";
-import SchoolLogin from "../components/SchoolLogin";
+import SchoolGate from "../components/SchoolGate";
 import TaskView from "../components/TaskView";
 export default function ResultScreen({ route, navigation }) {
   const uuid = route.params.taskUuid,
@@ -39,7 +39,7 @@ export default function ResultScreen({ route, navigation }) {
       {!task && !error && <Body>正在读取已保存结果…</Body>}
       {task && (
         <>
-          <TaskView task={task} />
+          <TaskView task={task} navigation={navigation} />
           {ACTIVE.includes(task.status) ? (
             <Button
               title="任务仍在执行，查看进度"
@@ -73,23 +73,24 @@ export default function ResultScreen({ route, navigation }) {
                 )}{" "}
                 {verify && (
                   <>
-                    <SchoolLogin onReady={() => {}} />
-                    <Button
-                      title="执行只读回查，不新增记录"
-                      loading={busy}
-                      onPress={async () => {
-                        B(true);
-                        E(null);
-                        try {
-                          await post("/api/task/" + uuid + "/verify");
-                          T(await get("/api/task/" + uuid));
-                        } catch (e) {
-                          E(e);
-                        } finally {
-                          B(false);
-                        }
-                      }}
-                    />
+                    <SchoolGate navigation={navigation}>
+                      <Button
+                        title="只读回查学校记录"
+                        loading={busy}
+                        onPress={async () => {
+                          B(true);
+                          E(null);
+                          try {
+                            await post("/api/task/" + uuid + "/verify");
+                            T(await get("/api/task/" + uuid));
+                          } catch (e) {
+                            E(e);
+                          } finally {
+                            B(false);
+                          }
+                        }}
+                      />
+                    </SchoolGate>
                   </>
                 )}
                 <Button

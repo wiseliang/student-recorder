@@ -18,3 +18,5 @@ android/local.properties
 *.hbc
 
 node_modules
+
+dist-preview/

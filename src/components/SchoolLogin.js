@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { get, post } from "../utils/api";
 import { Card, Body, Button, Field, Choice, ErrorBox } from "./ui";
-export default function SchoolLogin({ onReady }) {
+export default function SchoolLogin({ onReady, force = false }) {
   const [step, S] = useState("loading"),
     [id, I] = useState(""),
     [password, P] = useState(""),
@@ -20,6 +20,7 @@ export default function SchoolLogin({ onReady }) {
     [expires, X] = useState(0),
     [cool, D] = useState(0);
   const foreground = useForeground();
+  const created = useRef(false);
   const alive = useRef(true),
     flight = useRef(false),
     ready = useRef(false),
@@ -37,6 +38,8 @@ export default function SchoolLogin({ onReady }) {
       return;
     }
     ready.current = false;
+    if (r.needsCaptcha || r.needsCode || r.needsMfa || r.qrcode)
+      created.current = true;
     if (r.needsCaptcha || r.step === "captcha") {
       Q(r.captchaImage);
       S("captcha");
@@ -76,11 +79,12 @@ export default function SchoolLogin({ onReady }) {
       const s = await get("/api/auth/session-status");
       const c = await get("/api/auth/credential");
       if (alive.current) H(c.hasCredential);
-      return s;
+      return force ? { step: "password" } : s;
     });
     return () => {
       alive.current = false;
-      if (!ready.current) post("/api/auth/release").catch(() => {});
+      if (created.current && !ready.current)
+        post("/api/auth/release").catch(() => {});
     };
   }, []);
   useEffect(() => {
