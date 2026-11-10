@@ -65,6 +65,16 @@ export default function OverviewScreen({ navigation }) {
     const ticket = ++seq.current;
     B(true);
     try {
+      if (page === 1) {
+        const pending = await cacheRead("overviewScan." + kind);
+        if (
+          pending &&
+          alive.current &&
+          ticket === seq.current &&
+          (!school.connectionId || pending.connectionId === school.connectionId)
+        )
+          S((old) => old || pending);
+      }
       const response =
         page > 1
           ? await get("/api/overview/" + data.id, { ...options(), page })
@@ -129,7 +139,9 @@ export default function OverviewScreen({ navigation }) {
     E(null);
     try {
       const r = await post("/api/overview/scan", { kind });
-      S({ ...r, kind });
+      const pending = { ...r, kind, connectionId: school.connectionId };
+      S(pending);
+      await cacheWrite("overviewScan." + kind, pending);
       N("正在读取新数据，当前保留上次完整统计。");
     } catch (e) {
       E(e);
@@ -176,12 +188,14 @@ export default function OverviewScreen({ navigation }) {
             C(false);
             N("学校记录已更新，次数与轮次分别核对。");
           }
+          await cacheWrite("overviewScan." + scan.kind, null);
           S(null);
           E(null);
           return;
         }
         S((old) => ({ ...old, progress: r.progress }));
         if (r.state !== "scanning") {
+          await cacheWrite("overviewScan." + scan.kind, null);
           S(null);
           N(r.error || "读取已停止，上次完整统计仍保留。");
           return;
@@ -190,6 +204,14 @@ export default function OverviewScreen({ navigation }) {
       } catch (e) {
         if (!stopped) {
           E(e);
+          if (
+            ["OVERVIEW_NOT_FOUND", "OVERVIEW_TERM_CHANGED"].includes(e.code)
+          ) {
+            await cacheWrite("overviewScan." + scan.kind, null);
+            S(null);
+            N("读取已结束或账号学期已变化，请更新学校记录。");
+            return;
+          }
           timer = setTimeout(poll, 5000);
         }
       }
