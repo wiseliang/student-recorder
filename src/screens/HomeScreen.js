@@ -46,17 +46,40 @@ export default function HomeScreen({ navigation }) {
         <Button
           title="恢复上次检查预览"
           secondary
-          onPress={() => navigation.navigate("Record")}
+          onPress={async () => {
+            try {
+              const saved = await get("/api/task/plans/" + plan);
+              navigation.navigate(
+                saved.request?.recordType === "worklog-talk"
+                  ? "WorklogTalk"
+                  : "Record",
+              );
+            } catch (e) {
+              E(e);
+            }
+          }}
         />
       )}
       <Card>
+        <Body>工作日志管理 · 学期覆盖</Body>
         <Button
-          title="录入谈话记录"
+          title="为所带学生录入学期谈话"
+          disabled={!!active}
+          onPress={() => navigation.navigate("WorklogTalk")}
+        />
+        <Body muted>
+          完整所带名单默认全选，查看次数、跳过已录入，按已过去工作日均匀安排。
+        </Body>
+      </Card>
+      <Card>
+        <Body>学情日志 · 按周录入</Body>
+        <Button
+          title="学情日志：谈话记录"
           disabled={!!active}
           onPress={() => navigation.navigate("Record", { type: "talk" })}
         />
         <Button
-          title="录入陪伴记录"
+          title="学情日志：陪伴记录"
           disabled={!!active}
           onPress={() => navigation.navigate("Record", { type: "companion" })}
         />

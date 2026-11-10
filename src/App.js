@@ -3,6 +3,7 @@ import { Text } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import WorklogTalkScreen from "./screens/WorklogTalkScreen";
 import HomeScreen from "./screens/HomeScreen";
 import RecordScreen from "./screens/RecordScreen";
 import ProgressScreen from "./screens/ProgressScreen";
@@ -51,6 +52,11 @@ function Screens({ initial, component }) {
         name="Record"
         component={RecordScreen}
         options={{ title: "核对与录入" }}
+      />
+      <Stack.Screen
+        name="WorklogTalk"
+        component={WorklogTalkScreen}
+        options={{ title: "工作日志 · 学期谈话" }}
       />
       <Stack.Screen
         name="Progress"

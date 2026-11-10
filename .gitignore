@@ -16,3 +16,5 @@ android/local.properties
 *.apk
 *.aab
 *.hbc
+
+node_modules
