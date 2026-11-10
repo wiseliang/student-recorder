@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [feat/ui-v1.4]
+    branches: [feat/performance-v1.4.2]
   workflow_dispatch:
 jobs:
   apk:
