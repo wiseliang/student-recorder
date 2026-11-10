@@ -59,7 +59,15 @@ export default function ResultScreen({ route, navigation }) {
                     onPress={() =>
                       navigation.navigate(
                         task.type === "worklog-talk" ? "WorklogTalk" : "Record",
-                        { retryTaskUuid: uuid },
+                        {
+                          retryTaskUuid: uuid,
+                          entry:
+                            task.type === "academic-auto"
+                              ? "automatic"
+                              : task.type === "companion"
+                                ? "companion"
+                                : "talk",
+                        },
                       )
                     }
                   />
@@ -107,7 +115,12 @@ export default function ResultScreen({ route, navigation }) {
                   navigation.navigate(
                     task.type === "worklog-talk" ? "WorklogTalk" : "Record",
                     {
-                      type: task.type === "companion" ? "companion" : "talk",
+                      entry:
+                        task.type === "academic-auto"
+                          ? "automatic"
+                          : task.type === "companion"
+                            ? "companion"
+                            : "talk",
                     },
                   )
                 }

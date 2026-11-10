@@ -558,7 +558,12 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           )}
           {step === 2 && plan && (
             <>
-              <PlanPreview plan={plan} onEdit={edit} busy={busy} />
+              <PlanPreview
+                plan={plan}
+                onEdit={edit}
+                busy={busy}
+                error={error}
+              />
               {plan.state === "scanning" && (
                 <Button
                   title="停止核对"
