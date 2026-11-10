@@ -7,7 +7,7 @@ import { get, post } from '../utils/api'
 const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 export default function WeekSettingsScreen() {
-  const [week1Date, setWeek1Date] = useState('2026-03-09')
+  const [week1Date, setWeek1Date] = useState('')
   const [newDate, setNewDate] = useState(new Date())
   const [showPicker, setShowPicker] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(0)
@@ -52,7 +52,7 @@ export default function WeekSettingsScreen() {
         <Text style={styles.cardTitle}>📅 当前周次信息</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>第1周周一</Text>
-          <Text style={styles.infoValue}>{week1Date}</Text>
+          <Text style={styles.infoValue}>{week1Date || '加载中…'}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>当前周次</Text>

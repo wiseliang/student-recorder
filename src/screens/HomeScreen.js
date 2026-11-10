@@ -6,6 +6,7 @@ import { get } from '../utils/api'
 export default function HomeScreen({ navigation }) {
   const [week, setWeek] = useState(0)
   const [weekRange, setWeekRange] = useState('')
+  const [term, setTerm] = useState('')
   const [hasCred, setHasCred] = useState(false)
   const [hasActiveSession, setHasActiveSession] = useState(false)
 
@@ -13,6 +14,7 @@ export default function HomeScreen({ navigation }) {
     get('/api/week/current').then(r => {
       setWeek(r.week)
       setWeekRange(r.weekRange)
+      setTerm([r.academicYear && `${r.academicYear}学年`, r.semester].filter(Boolean).join(' · '))
     }).catch(() => {})
     get('/api/auth/credential').then(r => setHasCred(r.hasCredential)).catch(() => {})
     get('/api/auth/session-status').then(r => setHasActiveSession(r.hasActiveSession)).catch(() => {})
@@ -30,6 +32,7 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.weekNum}>第{week}周</Text>
           <Text style={styles.weekDate}>{weekRange}</Text>
         </View>
+        {!!term && <Text style={styles.weekHint}>{term}</Text>}
         <Text style={styles.weekHint}>{week % 2 === 1 ? '奇数周 → 建议录入陪伴' : '偶数周 → 建议录入谈话'}</Text>
       </View>
 
