@@ -36,6 +36,9 @@ export default function RecordScreen({ route, navigation }) {
     [error, E] = useState(null),
     [busy, B] = useState(false),
     [rosterWeek, V] = useState(null);
+  const [rangeFrom, RF] = useState("1"),
+    [rangeTo, RT] = useState("1"),
+    [previewLimit, PL] = useState(50);
   const foreground = useForeground();
   const alive = useRef(true),
     sequence = useRef(0),
@@ -81,6 +84,7 @@ export default function RecordScreen({ route, navigation }) {
       V(null);
     }
     K(next);
+    RT(String(next.week));
     if (!weeks.length)
       W([Math.min(route.params?.week || next.week, next.week)]);
     if (route.params?.retryTaskUuid) {
@@ -254,6 +258,49 @@ export default function RecordScreen({ route, navigation }) {
             <>
               <Card>
                 <Body>1 · 选择周次</Body>
+                <Field
+                  label="快速选择：起始周"
+                  value={rangeFrom}
+                  onChangeText={RF}
+                  keyboardType="number-pad"
+                />
+                <Field
+                  label="快速选择：截止周"
+                  value={rangeTo}
+                  onChangeText={RT}
+                  keyboardType="number-pad"
+                />
+                <Button
+                  title="应用周次范围"
+                  secondary
+                  onPress={() => {
+                    const first = Number(rangeFrom),
+                      last = Number(rangeTo);
+                    if (
+                      !Number.isInteger(first) ||
+                      !Number.isInteger(last) ||
+                      first < 1 ||
+                      last < first ||
+                      last > calendar.week ||
+                      last - first >= 30
+                    ) {
+                      E(new Error("请选择当前学期内不超过 30 周的连续范围"));
+                      return;
+                    }
+                    sequence.current++;
+                    abort.current?.abort();
+                    W(
+                      Array.from(
+                        { length: last - first + 1 },
+                        (_, i) => first + i,
+                      ),
+                    );
+                    V(null);
+                    P(null);
+                    E(null);
+                  }}
+                />
+
                 {calendar.weeks.map((w) => (
                   <Choice
                     key={w.week}
@@ -481,7 +528,7 @@ export default function RecordScreen({ route, navigation }) {
               {plan.summary.unconfirmed || 0}
             </Body>
           )}
-          {plan.operations?.map((o, i) => (
+          {plan.operations?.slice(0, previewLimit).map((o, i) => (
             <View
               key={o.studentId + "-" + o.week + "-" + i}
               style={{ gap: 4, paddingVertical: 8 }}
@@ -495,6 +542,13 @@ export default function RecordScreen({ route, navigation }) {
               </Body>
             </View>
           ))}
+          {plan.operations?.length > previewLimit && (
+            <Button
+              title="继续显示 50 项预览"
+              secondary
+              onPress={() => PL((n) => n + 50)}
+            />
+          )}
           {plan.usedBy ? (
             <Button
               title="查看已提交任务"
