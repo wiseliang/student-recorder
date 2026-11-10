@@ -1,3 +1,4 @@
+import { retainSelection } from "../utils/people";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import {
@@ -73,6 +74,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     weeksRef = useRef(weeks),
     recovering = useRef(false),
     pendingReload = useRef(false),
+    pendingAction = useRef(null),
+    retryLoaded = useRef(false),
+    draftStep = useRef(0),
+    draftKey = `draft.${worklog ? "worklog" : "academic"}.${entry}`,
     today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Shanghai",
     });
@@ -125,7 +130,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       recovering.current = false;
     }
   };
-  const run = async (fn) => {
+  const run = async (fn, resume = false) => {
     if (lock.current) return false;
     lock.current = true;
     B(true);
@@ -135,7 +140,18 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       return true;
     } catch (e) {
       if (alive.current && needsRosterReload(e)) await recoverSnapshot();
-      else if (alive.current && e.code !== "ABORTED") E(e);
+      else if (
+        alive.current &&
+        ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code)
+      ) {
+        pendingAction.current = resume ? fn : null;
+        NT(
+          resume
+            ? "学校需要重新连接，已保留填写内容，连接后继续检查。"
+            : "已保留预览。连接学校后请核对并再次确认录入。",
+        );
+        navigation.navigate("SchoolLogin", { force: true });
+      } else if (alive.current && e.code !== "ABORTED") E(e);
       return false;
     } finally {
       lock.current = false;
@@ -156,13 +172,18 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       const valid = s.students.map((x) => x.studentId);
       I(
         restoreIds.current
-          ? restoreIds.current.filter((id) => valid.includes(id))
+          ? retainSelection(restoreIds.current, s.students)
           : valid,
       );
       restoreIds.current = null;
+      if (draftStep.current === 1) {
+        S(1);
+        draftStep.current = 0;
+      }
     }
   };
   const applyPlan = (p) => {
+    if (p.id) draftStep.current = 0;
     const r = p.request || {};
     restoreIds.current = r.studentIds || null;
     if (r.studentIds) {
@@ -199,9 +220,22 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     }
   }, [calendar?.startDate]);
   useEffect(() => {
+    if (school.loading) return;
     alive.current = true;
     (async () => {
       try {
+        const draft = await cacheRead(draftKey);
+        if (
+          draft &&
+          (!calendar?.startDate ||
+            draft.calendarStartDate === calendar.startDate) &&
+          !route.params?.retryTaskUuid
+        ) {
+          applyPlan({ request: draft });
+          P(null);
+          S(0);
+          draftStep.current = draft.step === 1 ? 1 : 0;
+        }
         if (route.params?.retryTaskUuid) {
           const p = await post(
             "/api/task/" + route.params.retryTaskUuid + "/retry-plan",
@@ -209,6 +243,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           if (alive.current) {
             applyPlan(p);
             await currentPlan(p.id);
+            retryLoaded.current = true;
           }
           return;
         }
@@ -236,7 +271,12 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         }
       } catch (e) {
         if (alive.current && needsRosterReload(e)) await recoverSnapshot();
-        else if (alive.current) E(e);
+        else if (
+          alive.current &&
+          ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code)
+        ) {
+          navigation.navigate("SchoolLogin", { force: true });
+        } else if (alive.current) E(e);
       } finally {
         if (alive.current) Y(false);
       }
@@ -244,7 +284,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     return () => {
       alive.current = false;
     };
-  }, []);
+  }, [school.loading]);
   useEffect(() => {
     if (!foreground) return;
     const scanning = snapshot?.state === "scanning",
@@ -300,11 +340,73 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     );
     return () => clearTimeout(timer);
   }, [foreground, snapshot?.id, snapshot?.state, snapshot?.expiresAt]);
+  useEffect(() => {
+    if (!foreground || !school.hasActiveSession || hydrating) return;
+    if (route.params?.retryTaskUuid && !retryLoaded.current && !lock.current) {
+      void run(async () => {
+        const p = await post(
+          "/api/task/" + route.params.retryTaskUuid + "/retry-plan",
+        );
+        if (alive.current) {
+          applyPlan(p);
+          await currentPlan(p.id);
+          retryLoaded.current = true;
+        }
+      });
+    } else if (pendingAction.current && !lock.current) {
+      const action = pendingAction.current;
+      pendingAction.current = null;
+      void run(action, true);
+    }
+  }, [foreground, school.hasActiveSession, hydrating]);
+  useEffect(() => {
+    if (hydrating || !calendar?.startDate || route.params?.retryTaskUuid)
+      return;
+    const timer = setTimeout(() => {
+      void cacheWrite(draftKey, {
+        calendarStartDate: calendar.startDate,
+        step: Math.min(step, 1),
+        weeks,
+        studentIds: ids,
+        content,
+        durationMinutes: Number(duration),
+        method,
+        scene,
+        pbType,
+        shifts,
+        excludeDates: excluded,
+        fromDate: from,
+        toDate: to,
+        skipRecorded: skip,
+        targetCount: Number(target),
+      }).catch(() => {});
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    hydrating,
+    calendar?.startDate,
+    step,
+    weeks,
+    ids,
+    content,
+    duration,
+    method,
+    scene,
+    pbType,
+    shifts,
+    excluded,
+    from,
+    to,
+    skip,
+    target,
+  ]);
   const load = () =>
     run(async () => {
       NT(null);
+      if (selectionInitialized.current)
+        restoreIds.current = [...selectedRef.current];
       await beginRead();
-    });
+    }, true);
   const preview = () =>
     run(async () => {
       if (snapshotIsExpired(snapshot)) {
@@ -336,7 +438,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       P(p);
       S(2);
       await currentPlan(p.id);
-    });
+    }, true);
   const edit = (change) =>
     run(async () =>
       P(
@@ -355,6 +457,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         confirmedActual: true,
       });
       await currentPlan(null);
+      await cacheWrite(draftKey, null);
       navigation.replace("Progress", { taskUuid: r.taskUuid });
     });
   const rosterReady =
@@ -692,7 +795,12 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                   secondary
                   onPress={() =>
                     run(async () => {
-                      await post(api + "/plans/" + plan.id + "/cancel");
+                      await post(
+                        (plan.request?.retryOf ? "/api/task" : api) +
+                          "/plans/" +
+                          plan.id +
+                          "/cancel",
+                      );
                       P(await get("/api/task/plans/" + plan.id));
                     })
                   }
@@ -716,10 +824,13 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           worklog
             ? (s) =>
                 `本学期 ${s.semesterCount} 次 · 学校列表 ${s.schoolCount} 次`
-            : (s) => `参与 ${s.weeks?.length || 1} 周`
+            : (s) =>
+                `待录入 ${s.missingWeeks?.length ?? "待核对"} 周 · 已有 ${s.recordedCount ?? "待核对"} 条`
         }
         filterMissing={
-          worklog ? (s) => s.semesterCount < Number(target) : undefined
+          worklog
+            ? (s) => !skip || s.semesterCount < Number(target)
+            : (s) => !s.missingWeeks || s.missingWeeks.length > 0
         }
       />
     </Page>

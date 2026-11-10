@@ -22,6 +22,20 @@ export default function ResultScreen({ route, navigation }) {
       };
     }, [uuid]),
   );
+  const verifySchool = async () => {
+    B(true);
+    E(null);
+    try {
+      await post("/api/task/" + uuid + "/verify");
+      T(await get("/api/task/" + uuid));
+    } catch (e) {
+      E(e);
+      if (["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code))
+        navigation.navigate("SchoolLogin", { force: true });
+    } finally {
+      B(false);
+    }
+  };
   const reload = async () => {
     B(true);
     try {
@@ -49,7 +63,7 @@ export default function ResultScreen({ route, navigation }) {
             <>
               <Card>
                 <Body>
-                  失败重试仅包含确定未保存或未执行的项。已保存、已跳过以及结果待回查的项不会自动重复提交。
+                  重试前会重新读取学校记录，并回查不确定项。仅补录确认未保存或未执行的部分；结果仍不确定时，同一学生的相关项继续保留。
                 </Body>
                 {task.details?.some((d) =>
                   ["failed", "planned", "cancelled"].includes(d.status),
@@ -85,18 +99,7 @@ export default function ResultScreen({ route, navigation }) {
                       <Button
                         title="只读回查学校记录"
                         loading={busy}
-                        onPress={async () => {
-                          B(true);
-                          E(null);
-                          try {
-                            await post("/api/task/" + uuid + "/verify");
-                            T(await get("/api/task/" + uuid));
-                          } catch (e) {
-                            E(e);
-                          } finally {
-                            B(false);
-                          }
-                        }}
+                        onPress={verifySchool}
                       />
                     </SchoolGate>
                   </>

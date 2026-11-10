@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useState,
+  useRef,
 } from "react";
 import { AppState } from "react-native";
 import { get, onSchoolExpired } from "../utils/api";
@@ -12,17 +13,24 @@ export function SchoolProvider({ children }) {
   const [school, S] = useState({ loading: true, hasActiveSession: false }),
     [error, E] = useState(null),
     [connectionPrompted, markConnectionPrompted] = useState(false);
-  const refresh = useCallback(async () => {
-    try {
-      const state = await get("/api/auth/session-status");
-      S({ ...state, loading: false });
-      E(null);
-      return state;
-    } catch (e) {
-      E(e);
-      S((s) => ({ ...s, loading: false }));
-      throw e;
-    }
+  const refreshFlight = useRef(null);
+  const refresh = useCallback(() => {
+    if (refreshFlight.current) return refreshFlight.current;
+    refreshFlight.current = (async () => {
+      try {
+        const state = await get("/api/auth/session-status");
+        S({ ...state, loading: false });
+        E(null);
+        return state;
+      } catch (e) {
+        E(e);
+        S((s) => ({ ...s, loading: false }));
+        throw e;
+      }
+    })().finally(() => {
+      refreshFlight.current = null;
+    });
+    return refreshFlight.current;
   }, []);
   useEffect(() => {
     refresh().catch(() => {});

@@ -23,15 +23,23 @@ export default function ProgressScreen({ route, navigation }) {
       active.current = true;
       const poll = async () => {
         try {
-          const t = await get("/api/task/" + uuid, {summary:1}, {
-            signal: controller.signal,
-          });
+          const t = await get(
+            "/api/task/" + uuid,
+            { summary: 1 },
+            {
+              signal: controller.signal,
+            },
+          );
           if (stopped) return;
           T(t);
           E(null);
           if (ACTIVE.includes(t.status)) timer = setTimeout(poll, 2000);
         } catch (e) {
-          if (!stopped) E(e);
+          if (!stopped && e.code !== "ABORTED") {
+            E(e);
+            if (e.retryable || e.status === 0 || e.status >= 500)
+              timer = setTimeout(poll, 5000);
+          }
         }
       };
       poll();
