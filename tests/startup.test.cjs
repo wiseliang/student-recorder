@@ -204,3 +204,15 @@ test("all screens parse for release bundling", () => {
   }
   visit(root);
 });
+
+test("work-log semester conversations have an independent title", () => {
+  const p = moduleAt("utils/presentation.js");
+  assert.equal(
+    p.taskTitle({ type: "worklog-talk", weeks: [1, 3, 5] }),
+    "工作日志 · 学期谈话",
+  );
+  assert.notEqual(
+    p.taskTitle({ type: "talk", weeks: [1] }),
+    p.taskTitle({ type: "worklog-talk", weeks: [1] }),
+  );
+});

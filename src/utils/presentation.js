@@ -1,4 +1,4 @@
-export const VERSION = "1.2.0";
+export const VERSION = "1.3.0";
 export const ACTIVE = [
   "queued",
   "running",
@@ -26,11 +26,12 @@ export const operationLabels = {
   succeeded: "已保存并回查",
   skipped: "已跳过",
   not_applicable: "该周不适用",
-  failed: "提交前失败",
+  failed: "未保存，可重试",
   unconfirmed: "保存结果待回查",
   cancelled: "未执行，已取消",
 };
 export function taskTitle(task) {
+  if (task.type === "worklog-talk") return "工作日志 · 学期谈话";
   const weeks = (task.weeks || []).filter((w) => Number.isInteger(w) && w > 0);
   return `${task.type === "companion" ? "陪伴" : "谈话"} · ${weeks.length === 1 ? "第" + weeks[0] + "周" : weeks.length ? "第" + weeks.join("、") + "周" : "旧版批量任务"}`;
 }

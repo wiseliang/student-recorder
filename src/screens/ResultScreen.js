@@ -57,7 +57,10 @@ export default function ResultScreen({ route, navigation }) {
                   <Button
                     title="仅检查并重试失败 / 未执行项"
                     onPress={() =>
-                      navigation.navigate("Record", { retryTaskUuid: uuid })
+                      navigation.navigate(
+                        task.type === "worklog-talk" ? "WorklogTalk" : "Record",
+                        { retryTaskUuid: uuid },
+                      )
                     }
                   />
                 )}{" "}
@@ -100,9 +103,12 @@ export default function ResultScreen({ route, navigation }) {
                 title="另建一次实际工作记录"
                 secondary
                 onPress={() =>
-                  navigation.navigate("Record", {
-                    type: task.type === "companion" ? "companion" : "talk",
-                  })
+                  navigation.navigate(
+                    task.type === "worklog-talk" ? "WorklogTalk" : "Record",
+                    {
+                      type: task.type === "companion" ? "companion" : "talk",
+                    },
+                  )
                 }
               />
             </>

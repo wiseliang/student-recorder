@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [fix/review-v1.2]
+    branches: [feat/worklog-talk-flow]
   workflow_dispatch:
 jobs:
   apk:
