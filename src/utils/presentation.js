@@ -1,4 +1,4 @@
-export const VERSION = "1.4.2";
+export const VERSION = "1.4.3";
 export const ACTIVE = [
   "queued",
   "running",
@@ -25,7 +25,7 @@ export const operationLabels = {
   in_progress: "正在处理",
   succeeded: "已保存并回查",
   skipped: "已跳过",
-  not_applicable: "该周不适用",
+  not_applicable: "未安排，请查看原因",
   failed: "未保存，可重试",
   unconfirmed: "保存结果待回查",
   cancelled: "未执行，已取消",
@@ -52,3 +52,13 @@ export function outcome(task) {
 }
 
 export const statusLabel = (value) => statusLabels[value] || value;
+
+export function operationLabel(row) {
+  if (row.status === "skipped") return "已有记录，已跳过";
+  if (
+    row.status === "not_applicable" &&
+    /尚未到|时间未到/.test(row.reason || "")
+  )
+    return "尚未到时间，未录入";
+  return operationLabels[row.status] || row.status;
+}

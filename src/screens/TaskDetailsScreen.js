@@ -11,7 +11,7 @@ import {
   colors,
   styles,
 } from "../components/ui";
-import { operationLabels } from "../utils/presentation";
+import { operationLabel } from "../utils/presentation";
 export default function TaskDetailsScreen({ route }) {
   const [task, T] = useState(null),
     [error, E] = useState(null),
@@ -30,7 +30,13 @@ export default function TaskDetailsScreen({ route }) {
     (d) =>
       (!query || d.name?.includes(query) || d.studentId?.includes(query)) &&
       (!issues ||
-        ["failed", "unconfirmed", "planned", "cancelled"].includes(d.status)),
+        [
+          "failed",
+          "unconfirmed",
+          "planned",
+          "cancelled",
+          "not_applicable",
+        ].includes(d.status)),
   );
   return (
     <Page scroll={false}>
@@ -66,7 +72,7 @@ export default function TaskDetailsScreen({ route }) {
             <Text style={[styles.body, { fontWeight: "500" }]}>
               {d.name || d.studentId} · 第 {d.week} 周
             </Text>
-            <Pill>{operationLabels[d.status] || d.status}</Pill>
+            <Pill>{operationLabel(d)}</Pill>
             <Body muted>
               {d.studentId}
               {d.recordedAt ? " · " + d.recordedAt : ""}

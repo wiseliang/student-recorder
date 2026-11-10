@@ -217,10 +217,125 @@ test("work-log semester conversations have an independent title", () => {
   );
 });
 
-test('expired roster recovery handles both log sources and keeps valid semester weeks',()=>{
- const r=moduleAt('utils/flowRecovery.js');for(const code of ['SNAPSHOT_EXPIRED','SNAPSHOT_NOT_FOUND','ACADEMIC_SNAPSHOT_EXPIRED','ACADEMIC_SNAPSHOT_NOT_FOUND','PLAN_EXPIRED'])assert.equal(r.needsRosterReload({code}),true);
- assert.equal(r.needsRosterReload({code:'SCHOOL_AUTH_REQUIRED'}),false);assert.equal(r.needsRosterReload({code:'NETWORK_ERROR'}),false);
- assert.equal(r.snapshotIsExpired({expiresAt:'2026-11-10T00:00:00Z'},Date.parse('2026-11-10T00:00:01Z')),true);
- assert.equal(r.snapshotIsExpired({expired:true}),true);assert.equal(r.snapshotIsExpired({expiresAt:'invalid'}),false);
- assert.deepEqual(Array.from(r.refreshWeeks([3,2,2,99],{week:4},'automatic')),[2,3]);assert.deepEqual(Array.from(r.refreshWeeks([],{week:3},'automatic')),[1,2,3]);
+test("expired roster recovery handles both log sources and keeps valid semester weeks", () => {
+  const r = moduleAt("utils/flowRecovery.js");
+  for (const code of [
+    "SNAPSHOT_EXPIRED",
+    "SNAPSHOT_NOT_FOUND",
+    "ACADEMIC_SNAPSHOT_EXPIRED",
+    "ACADEMIC_SNAPSHOT_NOT_FOUND",
+    "PLAN_EXPIRED",
+  ])
+    assert.equal(r.needsRosterReload({ code }), true);
+  assert.equal(r.needsRosterReload({ code: "SCHOOL_AUTH_REQUIRED" }), false);
+  assert.equal(r.needsRosterReload({ code: "NETWORK_ERROR" }), false);
+  assert.equal(
+    r.snapshotIsExpired(
+      { expiresAt: "2026-11-10T00:00:00Z" },
+      Date.parse("2026-11-10T00:00:01Z"),
+    ),
+    true,
+  );
+  assert.equal(r.snapshotIsExpired({ expired: true }), true);
+  assert.equal(r.snapshotIsExpired({ expiresAt: "invalid" }), false);
+  assert.deepEqual(
+    Array.from(r.refreshWeeks([3, 2, 2, 99], { week: 4 }, "automatic")),
+    [2, 3],
+  );
+  assert.deepEqual(
+    Array.from(r.refreshWeeks([], { week: 3 }, "automatic")),
+    [1, 2, 3],
+  );
+});
+
+test("search normalizes spaces and mixed case and filtering never changes hidden selections", () => {
+  const { filterPeople, retainSelection } = moduleAt("utils/people.js"),
+    students = [
+      { studentId: "2022000001", name: "甲", major: "CS", missingWeeks: [] },
+      { studentId: "2022000002", name: "乙", major: "CS", missingWeeks: [1] },
+    ],
+    selected = new Set(students.map((s) => s.studentId));
+  assert.equal(
+    filterPeople(students, " cs  2022000002 ", "all", selected).length,
+    1,
+  );
+  assert.equal(
+    filterPeople(
+      students,
+      "",
+      "missing",
+      selected,
+      (s) => s.missingWeeks.length > 0,
+    )[0].studentId,
+    "2022000002",
+  );
+  assert.equal(selected.size, 2);
+  assert.equal(
+    retainSelection(["2022000001", "2023000001", "2022000001"], students).join(
+      ",",
+    ),
+    "2022000001",
+  );
+  assert.equal(
+    filterPeople([{ studentId: "2023000001", name: "甲" }], "", "all", selected)
+      .length,
+    1,
+  );
+});
+test("a school expiry after app token refresh goes to school connection, preserving app identity", async () => {
+  const storage = new Map([
+      ["recorder.https___example.invalid.openid", "original"],
+    ]),
+    secure = new Map([
+      ["recorder.https___example.invalid.token", "expired"],
+      ["recorder.https___example.invalid.refresh", "refresh"],
+    ]);
+  let school = 0,
+    lost = 0;
+  const api = moduleAt("utils/api.js", {
+    storage,
+    secure,
+    fetch: async (url, o) =>
+      url.endsWith("/refresh")
+        ? response(200, {
+            openid: "original",
+            token: "renewed",
+            refreshToken: "rotated",
+          })
+        : o.headers.Authorization === "Bearer expired"
+          ? response(401, { code: "AUTH_REQUIRED" })
+          : response(401, { code: "SCHOOL_AUTH_REQUIRED" }),
+  });
+  api.onSchoolExpired(() => school++);
+  api.onIdentityLost(() => lost++);
+  await assert.rejects(
+    api.get("/api/worklog/scan"),
+    (e) => e.code === "SCHOOL_AUTH_REQUIRED",
+  );
+  assert.equal(school, 1);
+  assert.equal(lost, 0);
+  assert.equal((await api.identity()).openid, "original");
+});
+test("result labels distinguish unarranged, not yet due and uncertain saves", () => {
+  const { operationLabel } = moduleAt("utils/presentation.js");
+  assert.equal(operationLabel({ status: "skipped" }), "已有记录，已跳过");
+  assert.equal(
+    operationLabel({ status: "not_applicable", reason: "尚未到时间" }),
+    "尚未到时间，未录入",
+  );
+  assert.match(
+    operationLabel({ status: "not_applicable", reason: "学校缺少联系方式" }),
+    /未安排/,
+  );
+  assert.match(operationLabel({ status: "unconfirmed" }), /待回查/);
+});
+
+test('login completion waits for the pre-login status read before fetching the fresh connection',async()=>{
+ let calls=0,release;const old=new Promise(r=>release=r),states=[];
+ const react={createContext:()=>({Provider:'provider'}),useState:(value)=>{const i=states.length;states.push(value);return [value,next=>{states[i]=typeof next==='function'?next(states[i]):next}]},useRef:value=>({current:value}),useCallback:fn=>fn,useEffect:()=>{},createElement:(_component,props)=>props};
+ const code=babel.transformSync(fs.readFileSync(path.join(__dirname,'../src/state/SchoolContext.js'),'utf8'),{configFile:false,babelrc:false,plugins:['@babel/plugin-transform-modules-commonjs','@babel/plugin-transform-react-jsx']}).code,exports={};
+ vm.runInNewContext(code,{exports,require:n=>n==='react'?react:n==='react-native'?{AppState:{}}:{get:async()=>++calls===1?old:{hasActiveSession:true,calendar:{startDate:'2026-08-31'}},onSchoolExpired:()=>{}},Date});
+ const {value}=exports.SchoolProvider({children:null});const stale=value.refresh(),connected=value.connected({startDate:'2026-08-31'});
+ assert.equal(calls,1);release({hasActiveSession:false});await stale;await connected;
+ assert.equal(calls,2);assert.equal(states[0].hasActiveSession,true);assert.equal(states[0].loading,false);
 });

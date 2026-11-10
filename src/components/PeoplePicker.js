@@ -1,3 +1,4 @@
+import { filterPeople } from "../utils/people";
 import React, { useMemo, useState } from "react";
 import { Modal, View, Text, FlatList, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -67,16 +68,7 @@ export default function PeoplePicker({
   }, [visible]);
   const chosen = useMemo(() => new Set(ids), [ids]),
     list = useMemo(
-      () =>
-        students.filter(
-          (s) =>
-            (!query ||
-              s.name.includes(query) ||
-              s.studentId.includes(query) ||
-              s.major?.includes(query)) &&
-            (mode !== "selected" || chosen.has(s.studentId)) &&
-            (mode !== "missing" || filterMissing?.(s)),
-        ),
+      () => filterPeople(students, query, mode, chosen, filterMissing),
       [students, query, chosen, mode, filterMissing],
     );
   return (
@@ -104,7 +96,7 @@ export default function PeoplePicker({
             {[
               ["all", "全部"],
               ["selected", "已选"],
-              ...(filterMissing ? [["missing", "未达标"]] : []),
+              ...(filterMissing ? [["missing", "仅看待录入"]] : []),
             ].map(([value, label]) => (
               <Pressable
                 key={value}
@@ -180,6 +172,8 @@ export default function PeoplePicker({
           keyExtractor={(s) => s.studentId}
           initialNumToRender={14}
           windowSize={5}
+          maxToRenderPerBatch={12}
+          extraData={chosen}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 20 }}
           renderItem={({ item: s }) => (

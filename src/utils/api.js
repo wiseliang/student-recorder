@@ -217,7 +217,12 @@ export async function request(method, path, data, options = {}) {
           token: current.token,
         });
       } catch (e) {
-        if (e.status === 401) identityListener(e);
+        if (
+          e.status === 401 &&
+          ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code)
+        )
+          schoolListener(e);
+        else if (e.status === 401) identityListener(e);
         throw e;
       }
     }

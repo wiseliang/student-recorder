@@ -47,11 +47,22 @@ export default function TaskView({ task, navigation }) {
         <MetricRow
           values={[
             ["已保存", task.progress?.success || 0],
-            ["已跳过", task.progress?.skipped || 0],
+            [
+              "已有跳过",
+              task.progress?.existing ?? task.progress?.skipped ?? 0,
+            ],
             ["失败", task.progress?.error || 0],
             ["待回查", task.progress?.unconfirmed || 0],
           ]}
         />
+        {(task.progress?.notApplicable > 0 ||
+          task.progress?.notExecuted > 0) && (
+          <Body muted>
+            未安排 {task.progress?.notApplicable || 0} 项 · 未执行{" "}
+            {task.progress?.notExecuted || 0}{" "}
+            项，可在明细中查看原因。未到时间的记录不会提前提交。
+          </Body>
+        )}
         {task.currentStudent && <Body muted>{task.currentStudent}</Body>}
         {task.failureReason && (
           <Body style={{ color: colors.danger }}>{task.failureReason}</Body>
@@ -60,9 +71,9 @@ export default function TaskView({ task, navigation }) {
           <Body muted>等待当前记录安全结束，请以最终结果为准。</Body>
         )}
         <Body muted>{dateLabel(task.createdAt)}</Body>
-        {!!(task.detailsCount??task.details?.length) && (
+        {!!(task.detailsCount ?? task.details?.length) && (
           <Button
-            title={`查看 ${task.detailsCount??task.details.length} 项明细`}
+            title={`查看 ${task.detailsCount ?? task.details.length} 项明细`}
             secondary
             onPress={() =>
               navigation.navigate("TaskDetails", { taskUuid: task.taskUuid })
