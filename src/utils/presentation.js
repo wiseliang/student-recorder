@@ -31,7 +31,7 @@ export const operationLabels = {
   cancelled: "未执行，已取消",
 };
 export function taskTitle(task) {
-  const weeks = task.weeks || [];
+  const weeks = (task.weeks || []).filter((w) => Number.isInteger(w) && w > 0);
   return `${task.type === "companion" ? "陪伴" : "谈话"} · ${weeks.length === 1 ? "第" + weeks[0] + "周" : weeks.length ? "第" + weeks.join("、") + "周" : "旧版批量任务"}`;
 }
 export function semesterLabel(c) {

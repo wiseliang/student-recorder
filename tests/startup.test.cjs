@@ -190,7 +190,7 @@ test("failed, cancelled and running tasks never have completed wording", () => {
     p.outcome({ status: "completed", progress: { success: 0 } }),
     "检查完成，无需新增",
   );
-  assert.ok(!p.taskTitle({ type: "talk", weeks: [] }).includes("第0周"));
+  assert.ok(!p.taskTitle({ type: "talk", weeks: [0] }).includes("第0周"));
 });
 test("all screens parse for release bundling", () => {
   const root = path.join(__dirname, "../src");

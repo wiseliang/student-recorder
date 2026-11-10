@@ -46,6 +46,7 @@ async function raw(
     timer = setTimeout(() => abort.abort(), timeout);
   const stop = () => abort.abort();
   signal?.addEventListener("abort", stop);
+  if (signal?.aborted) abort.abort();
   try {
     const response = await fetch(BASE_URL + path, {
       method,

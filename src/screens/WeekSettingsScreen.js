@@ -7,7 +7,7 @@ export default function WeekSettingsScreen() {
     [error, E] = useState(null);
   useEffect(() => {
     let live = true;
-    get("/api/week")
+    get("/api/week/current")
       .then((c) => live && C(c))
       .catch((e) => live && E(e));
     return () => {
