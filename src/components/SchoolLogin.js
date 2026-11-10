@@ -1,3 +1,4 @@
+import { useForeground } from "../utils/useForeground";
 import React, { useEffect, useRef, useState } from "react";
 import { Image, Text } from "react-native";
 import * as FileSystem from "expo-file-system";
@@ -18,6 +19,7 @@ export default function SchoolLogin({ onReady }) {
     [busy, B] = useState(false),
     [expires, X] = useState(0),
     [cool, D] = useState(0);
+  const foreground = useForeground();
   const alive = useRef(true),
     flight = useRef(false),
     ready = useRef(false),
@@ -27,10 +29,14 @@ export default function SchoolLogin({ onReady }) {
     if (!alive.current) return;
     if (r.loggedIn || r.hasActiveSession || r.step === "ready") {
       ready.current = true;
+      P("");
+      C("");
+      Q("");
       S("ready");
       await callback.current(r.calendar);
       return;
     }
+    ready.current = false;
     if (r.needsCaptcha || r.step === "captcha") {
       Q(r.captchaImage);
       S("captcha");
@@ -52,7 +58,13 @@ export default function SchoolLogin({ onReady }) {
     try {
       await accept(await fn());
     } catch (e) {
-      if (alive.current) E(e);
+      if (alive.current) {
+        E(e);
+        if (e.code === "SCHOOL_AUTH_REQUIRED") {
+          ready.current = false;
+          S("password");
+        }
+      }
     } finally {
       flight.current = false;
       if (alive.current) B(false);
@@ -72,7 +84,7 @@ export default function SchoolLogin({ onReady }) {
     };
   }, []);
   useEffect(() => {
-    if (step !== "qr") return;
+    if (step !== "qr" || !foreground) return;
     let stopped = false,
       timer;
     const poll = async () => {
@@ -88,7 +100,7 @@ export default function SchoolLogin({ onReady }) {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [step, expires]);
+  }, [step, expires, foreground]);
   useEffect(() => {
     if (!cool) return;
     const t = setTimeout(() => D(0), Math.max(0, cool - Date.now()));
@@ -101,10 +113,10 @@ export default function SchoolLogin({ onReady }) {
       return { step: "password" };
     });
   const share = async () => {
+    const uri = FileSystem.cacheDirectory + "school-qr.png";
     try {
       if (!(await Sharing.isAvailableAsync()))
         throw Error("此设备暂不支持系统分享，请使用另一设备扫码");
-      const uri = FileSystem.cacheDirectory + "school-qr.png";
       await FileSystem.writeAsStringAsync(uri, image.split("base64,").pop(), {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -112,18 +124,27 @@ export default function SchoolLogin({ onReady }) {
         mimeType: "image/png",
         dialogTitle: "分享登录二维码",
       });
-      await FileSystem.deleteAsync(uri, { idempotent: true });
     } catch (e) {
       E(e);
+    } finally {
+      await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
     }
   };
   if (step === "ready")
     return (
       <Card>
-        <Body>学校登录已核验</Body>
+        <Body>学校登录已核验，执行前会再次检查</Body>
+        <ErrorBox error={error} />
+        <Button
+          title="更换账号 / 重新登录"
+          secondary
+          loading={busy}
+          onPress={cancel}
+        />
         <Button
           title="重新核验并同步学期"
           secondary
+          loading={busy}
           onPress={() =>
             run(() =>
               get("/api/auth/academic-calendar").then((calendar) => ({

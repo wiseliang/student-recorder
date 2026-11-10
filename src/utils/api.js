@@ -168,7 +168,11 @@ export async function initializeIdentity() {
   );
 }
 export async function recoverIdentity(recoveryKey) {
-  return saveIdentity(await raw("POST", "/api/auth/recover", { recoveryKey }));
+  const normalized = recoveryKey.trim().toUpperCase();
+  const data = await raw("POST", "/api/auth/recover", {
+    recoveryKey: normalized,
+  });
+  return saveIdentity({ ...data, recoveryKey: normalized });
 }
 export async function request(method, path, data, options = {}) {
   let current = await identity();

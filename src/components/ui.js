@@ -64,7 +64,7 @@ export const styles = StyleSheet.create({
   },
   buttonText: { fontSize: 16, fontWeight: "600", color: "#FFF" },
   choice: {
-    minHeight: 46,
+    minHeight: 48,
     padding: 12,
     borderRadius: 9,
     borderWidth: 1,

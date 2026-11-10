@@ -1,3 +1,4 @@
+import { useForeground } from "../utils/useForeground";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -35,6 +36,7 @@ export default function RecordScreen({ route, navigation }) {
     [error, E] = useState(null),
     [busy, B] = useState(false),
     [rosterWeek, V] = useState(null);
+  const foreground = useForeground();
   const alive = useRef(true),
     sequence = useRef(0),
     pending = useRef(false),
@@ -55,7 +57,7 @@ export default function RecordScreen({ route, navigation }) {
   };
   useEffect(() => {
     alive.current = true;
-    currentPlan()
+    (route.params?.retryTaskUuid ? Promise.resolve(null) : currentPlan())
       .then((id) => id && get("/api/task/plans/" + id))
       .then((p) => {
         if (p && alive.current) P(p);
@@ -157,7 +159,7 @@ export default function RecordScreen({ route, navigation }) {
       });
   };
   useEffect(() => {
-    if (plan?.state !== "scanning") return;
+    if (plan?.state !== "scanning" || !foreground) return;
     let stopped = false,
       timer,
       controller = new AbortController();
@@ -180,7 +182,7 @@ export default function RecordScreen({ route, navigation }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [plan?.id, plan?.state]);
+  }, [plan?.id, plan?.state, foreground]);
   const visible = students.filter(
     (s) =>
       (!only || selected.includes(s.studentId)) &&
@@ -391,6 +393,26 @@ export default function RecordScreen({ route, navigation }) {
                         onPress={() => F(v)}
                       />
                     ))}
+                    {[
+                      "其他",
+                      "走访寝室",
+                      "走访自习室",
+                      "走访课堂",
+                      "走访班级",
+                      "走访团党支部",
+                      "走访实验室",
+                      "陪伴运动",
+                      "陪伴进餐",
+                      "陪伴自习",
+                      "陪伴上课",
+                    ].map((value) => (
+                      <Choice
+                        key={value}
+                        label={value}
+                        selected={scene === value}
+                        onPress={() => G(value)}
+                      />
+                    ))}
                     <Field
                       label="谈话场景（与学校选项一致）"
                       value={scene}
@@ -398,11 +420,24 @@ export default function RecordScreen({ route, navigation }) {
                     />
                   </>
                 ) : (
-                  <Field
-                    label="陪伴类型（与学校选项一致）"
-                    value={pbType}
-                    onChangeText={H}
-                  />
+                  <>
+                    <Body>常用陪伴类型</Body>
+                    {["共同上课", "共同进餐", "共上自习", "共同运动"].map(
+                      (value) => (
+                        <Choice
+                          key={value}
+                          label={value}
+                          selected={pbType === value}
+                          onPress={() => H(value)}
+                        />
+                      ),
+                    )}
+                    <Field
+                      label="陪伴类型（与学校选项一致）"
+                      value={pbType}
+                      onChangeText={H}
+                    />
+                  </>
                 )}
                 <Button
                   title="检查已有记录，生成预览"

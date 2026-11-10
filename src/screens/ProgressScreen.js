@@ -1,3 +1,4 @@
+import { useForeground } from "../utils/useForeground";
 import React, { useCallback, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
@@ -12,8 +13,10 @@ export default function ProgressScreen({ route, navigation }) {
     [busy, B] = useState(false),
     [generation, G] = useState(0);
   const active = useRef(true);
+  const foreground = useForeground();
   useFocusEffect(
     useCallback(() => {
+      if (!foreground) return;
       let stopped = false,
         timer,
         controller = new AbortController();
@@ -47,7 +50,7 @@ export default function ProgressScreen({ route, navigation }) {
         controller.abort();
         sub.remove();
       };
-    }, [uuid, generation]),
+    }, [uuid, generation, foreground]),
   );
   const control = async (action) => {
     B(true);
@@ -72,7 +75,7 @@ export default function ProgressScreen({ route, navigation }) {
       {task && (
         <>
           <TaskView task={task} />
-          {["queued", "running", "awaiting_input"].includes(task.status) && (
+          {["running", "awaiting_input"].includes(task.status) && (
             <Button
               title="请求安全暂停"
               loading={busy}
