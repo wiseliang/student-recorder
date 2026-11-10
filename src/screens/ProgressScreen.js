@@ -74,7 +74,7 @@ export default function ProgressScreen({ route, navigation }) {
       {!task && !error && <Body>正在读取任务状态…</Body>}
       {task && (
         <>
-          <TaskView task={task} />
+          <TaskView task={task} navigation={navigation} />
           {["running", "awaiting_input"].includes(task.status) && (
             <Button
               title="请求安全暂停"

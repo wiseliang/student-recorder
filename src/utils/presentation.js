@@ -1,4 +1,4 @@
-export const VERSION = "1.3.0";
+export const VERSION = "1.4.1";
 export const ACTIVE = [
   "queued",
   "running",
@@ -33,7 +33,7 @@ export const operationLabels = {
 export function taskTitle(task) {
   if (task.type === "worklog-talk") return "工作日志 · 学期谈话";
   const weeks = (task.weeks || []).filter((w) => Number.isInteger(w) && w > 0);
-  return `${task.type === "companion" ? "陪伴" : "谈话"} · ${weeks.length === 1 ? "第" + weeks[0] + "周" : weeks.length ? "第" + weeks.join("、") + "周" : "旧版批量任务"}`;
+  return `${task.type === "academic-auto" ? "一键录入" : task.type === "companion" ? "陪伴" : "谈话"} · ${weeks.length === 1 ? "第" + weeks[0] + "周" : weeks.length ? "第" + weeks.join("、") + "周" : "旧版批量任务"}`;
 }
 export function semesterLabel(c) {
   return c ? `${c.academicYear}学年 · ${c.semester}` : "旧版记录，学期未保存";

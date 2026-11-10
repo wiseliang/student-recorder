@@ -216,3 +216,11 @@ test("work-log semester conversations have an independent title", () => {
     p.taskTitle({ type: "worklog-talk", weeks: [1] }),
   );
 });
+
+test('expired roster recovery handles both log sources and keeps valid semester weeks',()=>{
+ const r=moduleAt('utils/flowRecovery.js');for(const code of ['SNAPSHOT_EXPIRED','SNAPSHOT_NOT_FOUND','ACADEMIC_SNAPSHOT_EXPIRED','ACADEMIC_SNAPSHOT_NOT_FOUND','PLAN_EXPIRED'])assert.equal(r.needsRosterReload({code}),true);
+ assert.equal(r.needsRosterReload({code:'SCHOOL_AUTH_REQUIRED'}),false);assert.equal(r.needsRosterReload({code:'NETWORK_ERROR'}),false);
+ assert.equal(r.snapshotIsExpired({expiresAt:'2026-11-10T00:00:00Z'},Date.parse('2026-11-10T00:00:01Z')),true);
+ assert.equal(r.snapshotIsExpired({expired:true}),true);assert.equal(r.snapshotIsExpired({expiresAt:'invalid'}),false);
+ assert.deepEqual(Array.from(r.refreshWeeks([3,2,2,99],{week:4},'automatic')),[2,3]);assert.deepEqual(Array.from(r.refreshWeeks([],{week:3},'automatic')),[1,2,3]);
+});

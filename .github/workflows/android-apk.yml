@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [feat/worklog-talk-flow]
+    branches: [feat/ui-v1.4]
   workflow_dispatch:
 jobs:
   apk:
