@@ -1,52 +1,238 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
-
-// Fixed HTTPS reverse proxy on the local deployment server.
-export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://wiseliang.cloud/student-recorder'
-// 原直连: 'https://118.190.208.230'
-
-const REQUEST_TIMEOUT_MS = 15000
-const LOGIN_TIMEOUT_MS = 45000  // Login flows need more time (browser nav + SSO)
-
-async function request(method, path, data) {
-  const openid = await AsyncStorage.getItem('openid')
-  const headers = { 'Content-Type': 'application/json' }
-  const server = await AsyncStorage.getItem('authServer')
-  const token = await AsyncStorage.getItem('authToken')
-  if (server === BASE_URL) {
-    if (openid) headers['x-openid'] = openid
-    if (token) headers.Authorization = 'Bearer ' + token
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+export const BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  "https://wiseliang.cloud/student-recorder";
+const namespace = BASE_URL.replace(/[^a-zA-Z0-9._-]/g, "_");
+const key = (name) => `recorder.${namespace}.${name}`;
+let refreshFlight = null,
+  identityListener = () => {};
+export class ApiError extends Error {
+  constructor(message, status = 0, code = "NETWORK_ERROR", details = {}) {
+    super(message);
+    Object.assign(this, { status, code, ...details });
   }
-
-  // Login/auth endpoints need longer timeout for browser navigation
-  const isAuthEndpoint = path.includes('/api/auth/')
-  const timeoutMs = isAuthEndpoint ? LOGIN_TIMEOUT_MS : REQUEST_TIMEOUT_MS
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
+}
+export function onIdentityLost(fn) {
+  identityListener = fn;
+  return () => {
+    identityListener = () => {};
+  };
+}
+export async function identity() {
+  const [openid, token] = await Promise.all([
+    AsyncStorage.getItem(key("openid")),
+    SecureStore.getItemAsync(key("token")),
+  ]);
+  return { openid, token };
+}
+async function saveIdentity(data) {
+  if (!data.openid || !data.token || !data.refreshToken)
+    throw new ApiError("登录响应不完整，请稍后重试", 502, "INVALID_RESPONSE");
+  await SecureStore.setItemAsync(key("token"), data.token);
+  await SecureStore.setItemAsync(key("refresh"), data.refreshToken);
+  if (data.recoveryKey)
+    await SecureStore.setItemAsync(key("recovery"), data.recoveryKey);
+  await AsyncStorage.setItem(key("openid"), data.openid);
+  return data;
+}
+async function raw(
+  method,
+  path,
+  data,
+  { signal, token, timeout = 30000 } = {},
+) {
+  const abort = new AbortController(),
+    timer = setTimeout(() => abort.abort(), timeout);
+  const stop = () => abort.abort();
+  signal?.addEventListener("abort", stop);
   try {
-    const resp = await fetch(BASE_URL + path, {
+    const response = await fetch(BASE_URL + path, {
       method,
-      headers,
-      body: data ? JSON.stringify(data) : undefined,
-      signal: controller.signal,
-    })
-
-    const json = await resp.json()
-    if (!resp.ok) throw new Error(json.error || `HTTP ${resp.status}`)
-    return json
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      throw new Error(`请求超时（${timeoutMs / 1000}秒），请检查网络连接`)
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {}),
+      },
+      body: data === undefined ? undefined : JSON.stringify(data),
+      signal: abort.signal,
+    });
+    const text = await response.text();
+    let result;
+    try {
+      result = text ? JSON.parse(text) : {};
+    } catch {
+      throw new ApiError(
+        "服务暂时没有返回有效结果，请稍后重试",
+        response.status || 502,
+        "INVALID_RESPONSE",
+        { retryable: true },
+      );
     }
-    throw e
+    if (!response.ok)
+      throw new ApiError(
+        result.error || "请求失败",
+        response.status,
+        result.code || "REQUEST_FAILED",
+        {
+          retryable: !!result.retryable,
+          retryAfter: result.retryAfter,
+          taskUuid: result.taskUuid,
+        },
+      );
+    return result;
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    if (signal?.aborted) throw new ApiError("操作已取消", 0, "ABORTED");
+    if (e.name === "AbortError")
+      throw new ApiError("请求超时，请检查网络后重试", 0, "TIMEOUT", {
+        retryable: true,
+      });
+    throw new ApiError(
+      "网络连接失败，可重试；已提交的任务会继续运行",
+      0,
+      "NETWORK_ERROR",
+      { retryable: true },
+    );
   } finally {
-    clearTimeout(timeoutId)
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", stop);
   }
 }
-
-export const get = (path, params) => {
-  const qs = params ? '?' + new URLSearchParams(params).toString() : ''
-  return request('GET', path + qs)
+export async function refreshIdentity() {
+  if (!refreshFlight)
+    refreshFlight = (async () => {
+      const refreshToken = await SecureStore.getItemAsync(key("refresh"));
+      if (!refreshToken)
+        throw new ApiError(
+          "需要恢复本机身份，请输入备份恢复码",
+          401,
+          "SESSION_RECOVERY_REQUIRED",
+        );
+      return saveIdentity(
+        await raw("POST", "/api/auth/refresh", { refreshToken }),
+      );
+    })().finally(() => {
+      refreshFlight = null;
+    });
+  return refreshFlight;
 }
-export const post = (path, data) => request('POST', path, data)
+export async function initializeIdentity() {
+  const current = await identity(),
+    refresh = await SecureStore.getItemAsync(key("refresh"));
+  if (refresh) {
+    try {
+      return await refreshIdentity();
+    } catch (e) {
+      if (e.status === 0 && current.openid)
+        return { ...current, offline: true };
+      throw e;
+    }
+  }
+  const oldServer = await AsyncStorage.getItem("authServer"),
+    oldToken = await AsyncStorage.getItem("authToken"),
+    oldId = await AsyncStorage.getItem("openid");
+  if (current.openid)
+    throw new ApiError(
+      "请用备份恢复码恢复原账户，历史记录仍保留",
+      401,
+      "SESSION_RECOVERY_REQUIRED",
+    );
+  if (oldServer === BASE_URL && oldToken) {
+    try {
+      return await saveIdentity(
+        await raw(
+          "POST",
+          "/api/auth/login",
+          { platform: "android" },
+          { token: oldToken },
+        ),
+      );
+    } catch (e) {
+      if (e.status === 401)
+        throw new ApiError(
+          "旧版身份需要恢复，请先保留原数据并联系维护者",
+          401,
+          "LEGACY_RECOVERY_REQUIRED",
+        );
+      throw e;
+    }
+  }
+  if (oldId && oldServer === BASE_URL)
+    throw new ApiError(
+      "检测到旧版账户，请先恢复，不会自动新建并丢弃历史",
+      401,
+      "LEGACY_RECOVERY_REQUIRED",
+    );
+  return saveIdentity(
+    await raw("POST", "/api/auth/login", { platform: "android" }),
+  );
+}
+export async function recoverIdentity(recoveryKey) {
+  return saveIdentity(await raw("POST", "/api/auth/recover", { recoveryKey }));
+}
+export async function request(method, path, data, options = {}) {
+  let current = await identity();
+  try {
+    return await raw(method, path, data, {
+      ...options,
+      token: current.token,
+      timeout: path.includes("/api/auth/") ? 90000 : 30000,
+    });
+  } catch (error) {
+    if (error.status === 401 && error.code === "AUTH_REQUIRED") {
+      try {
+        const latest = await identity();
+        if (latest.token === current.token) await refreshIdentity();
+        current = await identity();
+        return await raw(method, path, data, {
+          ...options,
+          token: current.token,
+        });
+      } catch (e) {
+        if (e.status === 401) identityListener(e);
+        throw e;
+      }
+    }
+    throw error;
+  }
+}
+export const get = (path, params, options) =>
+  request(
+    "GET",
+    path + (params ? "?" + new URLSearchParams(params).toString() : ""),
+    undefined,
+    options,
+  );
+export const post = (path, data = {}, options) =>
+  request("POST", path, data, options);
+export const del = (path) => request("DELETE", path);
+export const getRecoveryKey = () => SecureStore.getItemAsync(key("recovery"));
+export async function rotateRecoveryKey() {
+  const data = await post("/api/auth/recovery-key");
+  await SecureStore.setItemAsync(key("recovery"), data.recoveryKey);
+  return data.recoveryKey;
+}
+export async function cacheRead(name) {
+  const { openid } = await identity();
+  try {
+    return JSON.parse(
+      await AsyncStorage.getItem(key("cache." + openid + "." + name)),
+    );
+  } catch {
+    return null;
+  }
+}
+export async function cacheWrite(name, value) {
+  const { openid } = await identity();
+  await AsyncStorage.setItem(
+    key("cache." + openid + "." + name),
+    JSON.stringify(value),
+  );
+}
+export async function currentPlan(value) {
+  const { openid } = await identity();
+  const k = key("plan." + openid);
+  if (value === undefined) return AsyncStorage.getItem(k);
+  if (value === null) return AsyncStorage.removeItem(k);
+  return AsyncStorage.setItem(k, value);
+}

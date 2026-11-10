@@ -1,130 +1,144 @@
-import React, { useState, useCallback } from 'react'
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useFocusEffect } from '@react-navigation/native'
-import { get, post } from '../utils/api'
-
+import React, { useCallback, useState } from "react";
+import { Text } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import {
+  get,
+  del,
+  getRecoveryKey,
+  rotateRecoveryKey,
+  BASE_URL,
+} from "../utils/api";
+import { VERSION } from "../utils/presentation";
+import {
+  Page,
+  Card,
+  Title,
+  Body,
+  Button,
+  ErrorBox,
+  styles,
+} from "../components/ui";
 export default function SettingsScreen({ navigation }) {
-  const [studentId, setStudentId] = useState('')
-  const [password, setPassword] = useState('')
-  const [hasCred, setHasCred] = useState(false)
-  const [maskedId, setMaskedId] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [currentWeek, setCurrentWeek] = useState(0)
-  const [weekRange, setWeekRangeState] = useState('')
-
-  useFocusEffect(useCallback(() => {
-    checkCred()
-    get('/api/week/current').then(r => {
-      setCurrentWeek(r.week)
-      setWeekRangeState(r.weekRange)
-    }).catch(() => {})
-  }, []))
-
-  const checkCred = async () => {
+  const [credential, C] = useState(null),
+    [error, E] = useState(null),
+    [busy, B] = useState(false),
+    [key, K] = useState(null),
+    [health, H] = useState(null),
+    [confirm, F] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      Promise.all([get("/api/auth/credential"), get("/api/health")])
+        .then(([c, h]) => {
+          if (live) {
+            C(c);
+            H(h);
+            E(null);
+          }
+        })
+        .catch((e) => live && E(e));
+      return () => {
+        live = false;
+      };
+    }, []),
+  );
+  const run = async (fn) => {
+    B(true);
+    E(null);
     try {
-      const oid = await AsyncStorage.getItem('openid')
-      const params = oid ? { openid: oid } : {}
-      const res = await get('/api/auth/credential', params)
-      setHasCred(res.hasCredential)
-      if (res.hasCredential) {
-        const stored = await AsyncStorage.getItem('studentId')
-        if (stored) {
-          setMaskedId(stored.replace(/.(?=.{2})/g, '*'))
-        }
-      }
-    } catch (_) {}
-  }
-
-  const save = async () => {
-    if (!studentId.trim() || !password.trim()) return Alert.alert('请填写完整')
-    setSaving(true)
-    try {
-      await post('/api/auth/credential', { openid: await AsyncStorage.getItem('openid'), studentId: studentId.trim(), password: password.trim() })
-      await AsyncStorage.setItem('studentId', studentId.trim())
-      Alert.alert('保存成功')
-      setHasCred(true)
-      setMaskedId(studentId.trim().replace(/.(?=.{2})/g, '*'))
-      setPassword('')
-    } catch (e) { Alert.alert('保存失败', e.message) }
-    finally { setSaving(false) }
-  }
-
-  const clearCred = () => {
-    Alert.alert('确认清除', '清除后需要重新配置学号密码才能使用', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '确定清除', style: 'destructive',
-        onPress: async () => {
-          setHasCred(false)
-          setMaskedId('')
-          setStudentId('')
-          await AsyncStorage.removeItem('studentId')
-          Alert.alert('已清除')
-        }
-      }
-    ])
-  }
-
+      await fn();
+    } catch (e) {
+      E(e);
+    } finally {
+      B(false);
+    }
+  };
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>🔑 账号凭证</Text>
-        <Text style={styles.desc}>用于登录管理系统</Text>
-        <Text style={styles.label}>工号</Text>
-        <TextInput style={styles.input} value={studentId} onChangeText={setStudentId} placeholder="请输入工号" />
-        <Text style={styles.label}>密码</Text>
-        <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="请输入密码" secureTextEntry />
-        <TouchableOpacity style={styles.btn} onPress={save} disabled={saving}>
-          <Text style={styles.btnText}>{saving ? '💾 保存中...' : '💾 保存凭证'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.hint}>凭证将加密存储在服务器上</Text>
-      </View>
-
-      {hasCred && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>✅ 凭证已配置</Text>
-          <Text style={styles.desc}>工号：{maskedId}</Text>
-          <TouchableOpacity style={styles.clearBtn} onPress={clearCred}>
-            <Text style={styles.clearBtnText}>清除凭证</Text>
-          </TouchableOpacity>
-        </View>
+    <Page>
+      <Title>账号与设置</Title>
+      <ErrorBox error={error} />
+      {error?.taskUuid && (
+        <Button
+          title="先查看进行中的任务"
+          onPress={() =>
+            navigation.navigate("Progress", { taskUuid: error.taskUuid })
+          }
+        />
       )}
-
-      <View style={styles.card}>
-        <View style={styles.navRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>📅 周次基准日期</Text>
-            <Text style={styles.desc}>当前: 第{currentWeek}周 · {weekRange}</Text>
-          </View>
-          <TouchableOpacity style={styles.navBtn} onPress={() => navigation.navigate('WeekSettings')}>
-            <Text style={styles.navBtnText}>设置 →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>ℹ️ 关于</Text>
-        <Text style={styles.desc}>批量录入助手 v1.0.0</Text>
-        <Text style={styles.desc}>高效的批量数据处理工具</Text>
-      </View>
-    </ScrollView>
-  )
+      <Card>
+        <Body>
+          学校凭证：
+          {credential?.hasCredential
+            ? "服务器已加密保存 · " + credential.maskedId
+            : "尚未保存"}
+        </Body>
+        <Body muted>学校账号是否可用，以录入前学校验证为准。</Body>
+        <Button
+          title="验证 / 更换学校账号"
+          secondary
+          onPress={() => navigation.navigate("Record")}
+        />
+        <Button
+          title="删除服务器学校凭证和会话"
+          danger
+          loading={busy}
+          onPress={() =>
+            run(async () => {
+              await del("/api/auth/credential");
+              C({ hasCredential: false });
+            })
+          }
+        />
+        <Body muted>
+          删除后保留本机身份和任务历史；存在录入任务时需先停止任务。
+        </Body>
+      </Card>
+      <Card>
+        <Body>身份恢复码</Body>
+        <Body muted>
+          请在换机、卸载前备份。持有恢复码可恢复本账户历史，请私密保存。恢复到新设备会撤销原设备登录。
+        </Body>
+        {key && (
+          <Text selectable accessibilityLabel="身份恢复码" style={styles.body}>
+            {key}
+          </Text>
+        )}
+        <Button
+          title={key ? "隐藏恢复码" : "显示本机恢复码，长按复制"}
+          secondary
+          onPress={() =>
+            run(async () => K(key ? null : await getRecoveryKey()))
+          }
+        />
+        {confirm ? (
+          <>
+            <Body>重新生成后原恢复码立即失效，请保存新码。</Body>
+            <Button
+              title="确认生成新恢复码"
+              loading={busy}
+              onPress={() =>
+                run(async () => {
+                  K(await rotateRecoveryKey());
+                  F(false);
+                })
+              }
+            />
+            <Button title="保留原恢复码" secondary onPress={() => F(false)} />
+          </>
+        ) : (
+          <Button title="重新生成恢复码" secondary onPress={() => F(true)} />
+        )}
+      </Card>
+      <Card>
+        <Button
+          title="查看学校学期与周次"
+          secondary
+          onPress={() => navigation.navigate("WeekSettings")}
+        />
+        <Body>学工录入助手 {VERSION}</Body>
+        <Body muted>服务端 {health?.version || "尚未连接"}</Body>
+        <Body muted>{BASE_URL}</Body>
+      </Card>
+    </Page>
+  );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#F5F7FA' },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 6 },
-  desc: { fontSize: 13, color: '#999', marginBottom: 8 },
-  label: { fontSize: 14, color: '#666', marginBottom: 4 },
-  input: { height: 48, backgroundColor: '#F5F7FA', borderRadius: 8, paddingHorizontal: 12, fontSize: 16, marginBottom: 12 },
-  btn: { backgroundColor: '#1B62A5', borderRadius: 10, height: 48, justifyContent: 'center', alignItems: 'center' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  hint: { fontSize: 11, color: '#ccc', textAlign: 'center', marginTop: 8 },
-  clearBtn: { backgroundColor: '#FFF2F0', borderRadius: 10, height: 44, justifyContent: 'center', alignItems: 'center' },
-  clearBtnText: { color: '#FF4D4F', fontSize: 14, fontWeight: '600' },
-  navRow: { flexDirection: 'row', alignItems: 'center' },
-  navBtn: { backgroundColor: '#F0F7FF', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },
-  navBtnText: { color: '#1B62A5', fontSize: 14, fontWeight: '600' },
-})

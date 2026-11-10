@@ -1,141 +1,168 @@
-import React, { useEffect, useState } from 'react'
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert } from 'react-native'
-import { NavigationContainer } from '@react-navigation/native'
-import { createNativeStackNavigator } from '@react-navigation/native-stack'
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import HomeScreen from './screens/HomeScreen'
-import RecordScreen from './screens/RecordScreen'
-import ProgressScreen from './screens/ProgressScreen'
-import ResultScreen from './screens/ResultScreen'
-import SettingsScreen from './screens/SettingsScreen'
-import WeekSettingsScreen from './screens/WeekSettingsScreen'
-import HistoryScreen from './screens/HistoryScreen'
-import { post, BASE_URL } from './utils/api'
-
-const Stack = createNativeStackNavigator()
-const Tab = createBottomTabNavigator()
-
-const stackScreenOptions = {
-  headerStyle: { backgroundColor: '#1B62A5' },
-  headerTintColor: '#fff',
-  headerTitleStyle: { fontWeight: 'bold' },
-}
-
-function HomeStack() {
+import React, { useEffect, useState } from "react";
+import { Text } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import HomeScreen from "./screens/HomeScreen";
+import RecordScreen from "./screens/RecordScreen";
+import ProgressScreen from "./screens/ProgressScreen";
+import ResultScreen from "./screens/ResultScreen";
+import HistoryScreen from "./screens/HistoryScreen";
+import SettingsScreen from "./screens/SettingsScreen";
+import WeekSettingsScreen from "./screens/WeekSettingsScreen";
+import {
+  initializeIdentity,
+  recoverIdentity,
+  onIdentityLost,
+} from "./utils/api";
+import {
+  Page,
+  Card,
+  Title,
+  Body,
+  Button,
+  Field,
+  ErrorBox,
+  colors,
+} from "./components/ui";
+const Stack = createNativeStackNavigator(),
+  Tab = createBottomTabNavigator();
+const options = {
+  headerStyle: { backgroundColor: colors.primary },
+  headerTintColor: "#FFF",
+  headerTitleStyle: { fontWeight: "600" },
+};
+function Screens({ initial, component }) {
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: '批量录入助手' }} />
-      <Stack.Screen name="Record" component={RecordScreen} options={{ title: '录入' }} />
-      <Stack.Screen name="Progress" component={ProgressScreen} options={{ title: '进度' }} />
-      <Stack.Screen name="Result" component={ResultScreen} options={{ title: '结果' }} />
+    <Stack.Navigator screenOptions={options}>
+      <Stack.Screen
+        name={initial}
+        component={component}
+        options={{
+          title:
+            initial === "Home"
+              ? "学工录入助手"
+              : initial === "History"
+                ? "任务历史"
+                : "设置",
+        }}
+      />
+      <Stack.Screen
+        name="Record"
+        component={RecordScreen}
+        options={{ title: "核对与录入" }}
+      />
+      <Stack.Screen
+        name="Progress"
+        component={ProgressScreen}
+        options={{ title: "任务进度" }}
+      />
+      <Stack.Screen
+        name="Result"
+        component={ResultScreen}
+        options={{ title: "任务结果" }}
+      />
+      <Stack.Screen
+        name="WeekSettings"
+        component={WeekSettingsScreen}
+        options={{ title: "学校学期与周次" }}
+      />
     </Stack.Navigator>
-  )
+  );
 }
-
-function HistoryStack() {
-  return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="History" component={HistoryScreen} options={{ title: '历史' }} />
-      <Stack.Screen name="Result" component={ResultScreen} options={{ title: '结果' }} />
-    </Stack.Navigator>
-  )
-}
-
-function SettingsStack() {
-  return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
-      <Stack.Screen name="WeekSettings" component={WeekSettingsScreen} options={{ title: '周次基准' }} />
-    </Stack.Navigator>
-  )
-}
-
-const splashStyles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1B62A5' },
-  title: { fontSize: 28, color: '#fff', fontWeight: 'bold', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 24 },
-  spinner: { marginTop: 16 },
-})
-
+const Home = () => <Screens initial="Home" component={HomeScreen} />,
+  History = () => <Screens initial="History" component={HistoryScreen} />,
+  Settings = () => <Screens initial="Settings" component={SettingsScreen} />;
 export default function App() {
-  const [ready, setReady] = useState(false)
-  const [initError, setInitError] = useState('')
-
-  useEffect(() => {
-    initOpenid()
-  }, [])
-
-  const initOpenid = async () => {
-    setReady(false)
-    setInitError('')
+  const [ready, R] = useState(false),
+    [busy, B] = useState(false),
+    [error, E] = useState(null),
+    [code, C] = useState("");
+  const init = async () => {
+    B(true);
+    E(null);
     try {
-      const data = await post('/api/auth/login', { platform: 'android' })
-      if (!data.openid || !data.token) throw new Error('登录响应无效，请更新服务端')
-      await AsyncStorage.multiSet([['openid', data.openid], ['authToken', data.token], ['authServer', BASE_URL]])
+      await initializeIdentity();
+      R(true);
     } catch (e) {
-      setInitError(e.message || '无法连接服务器')
+      E(e);
     } finally {
-      setReady(true)
+      B(false);
     }
-  }
-
-  if (ready && initError) {
-    return <View style={splashStyles.container}>
-      <Text style={splashStyles.title}>连接失败</Text>
-      <Text style={splashStyles.subtitle}>{initError}</Text>
-      <TouchableOpacity onPress={initOpenid}><Text style={{ color: '#fff', fontSize: 18 }}>重试</Text></TouchableOpacity>
-      {initError.includes('登录已失效') && <TouchableOpacity onPress={() => Alert.alert(
-        '重新登录', '会话已过期。重新登录后需要重新配置学工账号，原任务历史仍保留在原账户下。',
-        [{ text: '取消', style: 'cancel' }, { text: '重新登录', onPress: async () => {
-          try { await AsyncStorage.multiRemove(['openid', 'authToken']); await initOpenid() }
-          catch (e) { setInitError(e.message || '无法清除登录信息') }
-        } }]
-      )}><Text style={{ color: '#fff', marginTop: 20 }}>重新登录</Text></TouchableOpacity>}
-    </View>
-  }
-
-  if (!ready) {
+  };
+  useEffect(() => {
+    init();
+    return onIdentityLost((e) => {
+      R(false);
+      E(e);
+    });
+  }, []);
+  if (!ready)
     return (
-      <View style={splashStyles.container}>
-        <Text style={splashStyles.title}>批量录入助手</Text>
-        <Text style={splashStyles.subtitle}>学生工作记录系统</Text>
-        <ActivityIndicator size="large" color="#fff" style={splashStyles.spinner} />
-      </View>
-    )
-  }
-
+      <Page>
+        <Title>学工录入助手</Title>
+        <Card>
+          <Body>正在连接你的工作记录</Body>
+          <ErrorBox error={error} />
+          <Button title="连接服务器" loading={busy} onPress={init} />
+          <Field
+            label="恢复码（换机或恢复原账户）"
+            value={code}
+            onChangeText={C}
+          />
+          <Button
+            title="恢复原账户和历史"
+            secondary
+            disabled={!code.trim()}
+            loading={busy}
+            onPress={async () => {
+              B(true);
+              try {
+                await recoverIdentity(code.trim());
+                R(true);
+                C("");
+              } catch (e) {
+                E(e);
+              } finally {
+                B(false);
+              }
+            }}
+          />
+          <Body muted>
+            原账户不会因网络错误或会话过期被自动替换。请保留旧设备数据。
+          </Body>
+        </Card>
+      </Page>
+    );
   return (
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#1B62A5',
-          tabBarInactiveTintColor: '#999999',
-          tabBarStyle: { backgroundColor: '#FFFFFF', borderTopColor: '#E0E0E0' },
-          tabBarLabelStyle: { fontSize: 11, marginBottom: 2 },
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.muted,
+          tabBarLabelStyle: { fontSize: 14 },
+          tabBarStyle: { minHeight: 60, paddingBottom: 6 },
         }}
       >
-        <Tab.Screen
-          name="HomeTab"
-          component={HomeStack}
-          options={{ tabBarLabel: '首页', tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🏠</Text> }}
-        />
-        <Tab.Screen
-          name="HistoryTab"
-          component={HistoryStack}
-          options={{ tabBarLabel: '历史', tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>📋</Text> }}
-        />
-        <Tab.Screen
-          name="SettingsTab"
-          component={SettingsStack}
-          options={{
-            tabBarLabel: '设置',
-            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>⚙️</Text>,
-            headerShown: false,
-          }}
-        />
+        {[
+          ["HomeTab", Home, "首页", "⌂"],
+          ["HistoryTab", History, "历史", "☷"],
+          ["SettingsTab", Settings, "设置", "⚙"],
+        ].map(([name, component, label, icon]) => (
+          <Tab.Screen
+            key={name}
+            name={name}
+            component={component}
+            options={{
+              tabBarLabel: label,
+              tabBarIcon: ({ color }) => (
+                <Text style={{ color, fontSize: 24 }}>{icon}</Text>
+              ),
+            }}
+          />
+        ))}
       </Tab.Navigator>
     </NavigationContainer>
-  )
+  );
 }

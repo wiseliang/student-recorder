@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [fix/session-auth-week-and-startup]
+    branches: [fix/review-v1.2]
   workflow_dispatch:
 jobs:
   apk:

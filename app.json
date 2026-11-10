@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "学生工作记录",
+    "name": "学工录入助手",
     "slug": "student-recorder",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -17,7 +17,8 @@
       "package": "com.wiseliang.studentrecorder",
       "adaptiveIcon": {
         "backgroundColor": "#1B62A5"
-      }
+      },
+      "versionCode": 3
     },
     "extra": {
       "eas": {

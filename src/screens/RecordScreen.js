@@ -1,502 +1,507 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, StyleSheet, Alert, ActivityIndicator, Platform } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as FileSystem from 'expo-file-system'
-import * as MediaLibrary from 'expo-media-library'
-import { get, post } from '../utils/api'
-
-const TYPE_NAMES = { companion: '录入陪伴', talk: '录入谈话', batch: '一键录入', 'fill-missing': '查询补录' }
-
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import SchoolLogin from "../components/SchoolLogin";
+import {
+  Page,
+  Card,
+  Title,
+  Body,
+  Button,
+  Choice,
+  Field,
+  ErrorBox,
+} from "../components/ui";
+import { get, post, currentPlan } from "../utils/api";
+import { bounds, formatActivity, validSchedule } from "../utils/calendar";
+import { operationLabels } from "../utils/presentation";
 export default function RecordScreen({ route, navigation }) {
-  const { type, week } = route.params
-  const [currentWeek, setCurrentWeek] = useState(week || 1)
-  const [calendar, setCalendar] = useState(null)
-  const [calendarError, setCalendarError] = useState('')
-  const weeks = Array.from({ length: currentWeek }, (_, i) => ({
-    val: i + 1, checked: i + 1 === currentWeek,
-    hint: (i + 1) % 2 === 1 ? '陪伴' : '谈话'
-  }))
-
-  // credential
-  const [hasLocalCred, setHasLocalCred] = useState(false)
-  const [checkingLocalCred, setCheckingLocalCred] = useState(true)
-
-  // login
-  const [loginStep, setLoginStep] = useState('init')
-  const [checking, setChecking] = useState(false)
-  const [code, setCode] = useState('')
-  const [captchaText, setCaptchaText] = useState('')
-  const [captchaImage, setCaptchaImage] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [resending, setResending] = useState(false)
-  // qr
-  const [qrCodeImage, setQrCodeImage] = useState('')
-  const [qrMessage, setQrMessage] = useState('')
-  const [checkingQr, setCheckingQr] = useState(false)
-  const [isQrMfa, setIsQrMfa] = useState(false)
-  const qrPollRef = useRef(null)
-  // login failed
-  const [loginFailedMsg, setLoginFailedMsg] = useState('')
-  const [loginFailedScreenshot, setLoginFailedScreenshot] = useState('')
-
-  // students
-  const [students, setStudents] = useState([])
-  const [loadingStudents, setLoadingStudents] = useState(false)
-  const [weekList, setWeekList] = useState(weeks)
-  const [weekAllChecked, setWeekAllChecked] = useState(false)
-
-  // options
-  const [pbType, setPbType] = useState('共同上课')
-  const [scene, setScene] = useState('走访寝室')
-  const [contentText, setContentText] = useState(type === 'companion' ? '查课' : '查寝')
-  const [recording, setRecording] = useState(false)
-
-  const openid = () => AsyncStorage.getItem('openid')
-
-  const syncCalendar = async () => {
-    setCalendarError('')
+  const [calendar, K] = useState(null),
+    [type, T] = useState(route.params?.type || "talk"),
+    [mode, M] = useState(route.params?.mode || "record"),
+    [weeks, W] = useState([]),
+    [students, U] = useState([]),
+    [selected, S] = useState([]),
+    [search, Q] = useState(""),
+    [only, O] = useState(false),
+    [schedule, D] = useState({}),
+    [picker, J] = useState(null),
+    [content, C] = useState(""),
+    [duration, N] = useState("30"),
+    [method, F] = useState("面对面"),
+    [scene, G] = useState("走访寝室"),
+    [pbType, H] = useState("共同上课"),
+    [plan, P] = useState(null),
+    [error, E] = useState(null),
+    [busy, B] = useState(false),
+    [rosterWeek, V] = useState(null);
+  const alive = useRef(true),
+    sequence = useRef(0),
+    pending = useRef(false),
+    abort = useRef(null);
+  const run = async (fn) => {
+    if (pending.current) return;
+    pending.current = true;
+    B(true);
+    E(null);
     try {
-      const c = await get('/api/auth/academic-calendar')
-      if (!c.verified) throw new Error('学校学期尚未核验')
-      setCalendar(c)
-      setCurrentWeek(c.week)
-      setWeekList(c.weeks.map(w => ({val:w.week,range:w.range,checked:false,hint:w.week%2===1?'陪伴':'谈话'})))
-      setStudents([])
-      setWeekAllChecked(false)
-      return true
-    } catch (e) { setCalendar(null); setCalendarError(e.message); return false }
-  }
-
-  useEffect(() => { if (loginStep === 'done') syncCalendar() }, [loginStep])
-
-  // Check credentials + active session on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const oid = await openid()
-        const params = oid ? { openid: oid } : {}
-        // Check active session first
-        try {
-          const sessionRes = await get('/api/auth/session-status', params)
-          if (sessionRes.hasActiveSession) { setLoginStep('done'); setCheckingLocalCred(false); return }
-        } catch (_) {}
-        // Check DB credentials
-        const credRes = await get('/api/auth/credential', params)
-        setHasLocalCred(credRes.hasCredential)
-      } catch (_) {}
-      finally { setCheckingLocalCred(false) }
-    })()
-  }, [])
-
-  // ===== Password login =====
-  const checkLogin = async () => {
-    setChecking(true)
-    try {
-      const res = await post('/api/auth/start-login', { openid: await openid() })
-      handleLoginResult(res)
-    } catch (e) { Alert.alert('登录失败', e.message) }
-    finally { setChecking(false) }
-  }
-
-  const handleLoginResult = (res) => {
-    if (res.loginFailed) { setLoginStep('loginFailed'); setLoginFailedMsg(res.message); setLoginFailedScreenshot(res.screenshot) }
-    else if (res.needsCaptcha) { setLoginStep('needCaptcha'); setCaptchaImage(res.captchaImage) }
-    else if (res.needsCode) { setLoginStep('needCode') }
-    else { setLoginStep('done') }
-  }
-
-  const submitCaptcha = async () => {
-    if (!captchaText.trim()) return Alert.alert('请输入验证码')
-    setSubmitting(true)
-    try {
-      const res = await post('/api/auth/submit-captcha', { openid: await openid(), captcha: captchaText.trim() })
-      if (res.needsCaptcha) { setCaptchaImage(res.captchaImage); setCaptchaText(''); Alert.alert('验证码错误，请重试') }
-      else if (res.needsCode) { setLoginStep('needCode') }
-      else { setLoginStep('done') }
-    } catch (e) { Alert.alert('提交失败', e.message) }
-    finally { setSubmitting(false) }
-  }
-
-  const submitCode = async () => {
-    const c = code.trim()
-    if (c.length < 4) return Alert.alert('请输入完整验证码')
-    setSubmitting(true)
-    if (isQrMfa) {
-      try {
-        const res = await post('/api/auth/qrcode-submit-code', { openid: await openid(), code: c })
-        if (res.success) { Alert.alert('MFA 验证成功！'); setLoginStep('done'); setIsQrMfa(false) }
-        else { Alert.alert(res.message || '验证失败') }
-      } catch (e) { Alert.alert('提交失败', e.message) }
-      finally { setSubmitting(false) }
-      return
-    }
-    try {
-      await post('/api/auth/submit-code', { openid: await openid(), code: c })
-      Alert.alert('验证成功'); setLoginStep('done')
-    } catch (e) { Alert.alert('验证失败', e.message) }
-    finally { setSubmitting(false) }
-  }
-
-  const resendCode = async () => {
-    setResending(true)
-    try { await post('/api/auth/resend-code', { openid: await openid() }); Alert.alert('已重新发送') }
-    catch (e) { Alert.alert(e.message || '重发失败') }
-    finally { setResending(false) }
-  }
-
-  // ===== QR Code login =====
-  const startQrLogin = async () => {
-    setChecking(true)
-    try {
-      const res = await post('/api/auth/qrcode-start', { openid: await openid() })
-      if (res.loggedIn) { Alert.alert('已登录，无需扫码'); setLoginStep('done') }
-      else if (res.hasQrCode) { setLoginStep('qrcode'); setQrCodeImage(res.qrcode); setQrMessage(res.message); startQrPolling() }
-      else if (res.needsMfa) { setLoginStep('needCode'); setCode(''); setIsQrMfa(true) }
-      else { Alert.alert(res.message || '获取二维码失败') }
-    } catch (e) { Alert.alert('获取二维码失败', e.message) }
-    finally { setChecking(false) }
-  }
-
-  const startQrPolling = useCallback(() => {
-    let attempts = 0; const MAX = 20; let cancelled = false
-    const poll = async () => {
-      if (cancelled) return
-      try {
-        const res = await post('/api/auth/qrcode-wait', { openid: await openid() })
-        if (cancelled) return
-        if (res.loggedIn) { Alert.alert('扫码登录成功！'); setLoginStep('done'); return }
-        else if (res.needsMfa) { setLoginStep('needCode'); setCode(''); setIsQrMfa(true); return }
-      } catch (_) {}
-      attempts++
-      if (attempts < MAX) qrPollRef.current = setTimeout(poll, 3000)
-    }
-    qrPollRef.current = setTimeout(poll, 3000)
-  }, [])
-
-  useEffect(() => { return () => { if (qrPollRef.current) { clearTimeout(qrPollRef.current); qrPollRef.current = null } } }, [])
-
-  const checkQrLogin = async () => {
-    if (qrPollRef.current) { clearTimeout(qrPollRef.current); qrPollRef.current = null }
-    setCheckingQr(true)
-    try {
-      const res = await post('/api/auth/qrcode-wait', { openid: await openid() })
-      if (res.loggedIn) { Alert.alert('扫码登录成功！'); setLoginStep('done') }
-      else if (res.needsMfa) { setLoginStep('needCode'); setCode(''); setIsQrMfa(true) }
-      else { Alert.alert('尚未扫码，请扫描后再试') }
-    } catch (e) { Alert.alert('验证失败', e.message) }
-    finally { setCheckingQr(false) }
-  }
-
-  // ===== Students =====
-  const loadStudents = async () => {
-    setLoadingStudents(true)
-    try {
-      const w = weekList.find(w => w.checked)?.val || currentWeek
-      if (!calendar) throw new Error('请先同步学校学期')
-      const res = await get('/api/auth/student-list', { week: w })
-      setStudents((res.students || []).map(s => ({ ...s, _checked: false, _hasRecord: false })))
-    } catch (e) { Alert.alert('加载失败', e.message) }
-    finally { setLoadingStudents(false) }
-  }
-
-  const selectedCount = students.filter(s => s._checked).length
-  const studentAllChecked = students.length > 0 && students.every(s => s._checked)
-
-  const toggleWeek = (val) => {
-    const next = weekList.map(w => w.val === val ? { ...w, checked: !w.checked } : w)
-    setWeekList(next); setWeekAllChecked(next.every(w => w.checked)); setStudents([])
-  }
-  const toggleAllWeeks = () => {
-    const all = !weekAllChecked
-    setWeekList(weekList.map(w => ({ ...w, checked: all }))); setWeekAllChecked(all); setStudents([])
-  }
-  const toggleStudent = (idx) => {
-    setStudents(students.map(s => s.index === idx ? { ...s, _checked: !s._checked } : s))
-  }
-  const toggleAllStudents = () => {
-    const all = !studentAllChecked
-    setStudents(students.map(s => ({ ...s, _checked: all })))
-  }
-
-  // 保存二维码到相册
-  const saveQrCode = async () => {
-    if (!qrCodeImage) return
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync()
-      if (status !== 'granted') {
-        Alert.alert('需要权限', '请在设置中允许访问相册')
-        return
-      }
-      // data:image/png;base64,... → 写入临时文件 → 保存到相册
-      const base64Data = qrCodeImage.includes('base64,')
-        ? qrCodeImage.split('base64,')[1]
-        : qrCodeImage
-      const fileUri = FileSystem.cacheDirectory + `qrcode_${Date.now()}.png`
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
-      })
-      await MediaLibrary.saveToLibraryAsync(fileUri)
-      Alert.alert('已保存', '二维码已保存到相册')
+      await fn();
     } catch (e) {
-      Alert.alert('保存失败', e.message)
+      if (alive.current) E(e);
+    } finally {
+      pending.current = false;
+      if (alive.current) B(false);
     }
-  }
-
-  const startRecord = async () => {
-    if (!calendar?.verified) return Alert.alert('请先同步学校学期')
-    const selectedWeeks = weekList.filter(w => w.checked).map(w => w.val)
-    const selectedStudents = students.filter(s => s._checked)
-    if (!selectedWeeks.length) return Alert.alert('请选择至少一周')
-    if (!students.length || !selectedStudents.length) return Alert.alert('请先加载并选择学生')
-    setRecording(true)
-    const opts = { calendarStartDate: calendar.startDate }
-    if (type === 'companion') { opts.pbType = pbType; if (contentText) opts.content = contentText }
-    else if (type === 'talk') { opts.scene = scene; if (contentText) opts.content = contentText }
-    if (selectedStudents.some(s => !s.studentId)) { setRecording(false); return Alert.alert('学生学号缺失，请重新加载名单') }
-    opts.studentIds = selectedStudents.map(s => s.studentId)
-    if (selectedWeeks.length > 0) opts.weeks = selectedWeeks
-    try {
-      const res = await post('/api/task/create', { openid: await openid(), type, week: type === 'batch' || type === 'fill-missing' ? 0 : (selectedWeeks[0] || 1), options: opts })
-      navigation.navigate('Progress', { taskUuid: res.taskUuid, type, week: selectedWeeks[0] || 1 })
-    } catch (e) { Alert.alert('创建失败', e.message) }
-    finally { setRecording(false) }
-  }
-
+  };
+  useEffect(() => {
+    alive.current = true;
+    currentPlan()
+      .then((id) => id && get("/api/task/plans/" + id))
+      .then((p) => {
+        if (p && alive.current) P(p);
+      })
+      .catch((e) => alive.current && E(e));
+    return () => {
+      alive.current = false;
+      sequence.current++;
+      abort.current?.abort();
+    };
+  }, []);
+  const ready = async (c) => {
+    const next = c || (await get("/api/auth/academic-calendar"));
+    if (!alive.current) return;
+    if (!next.verified) throw Error("学校学期尚未核验");
+    if (calendar && calendar.startDate !== next.startDate) {
+      W([]);
+      U([]);
+      S([]);
+      D({});
+      V(null);
+    }
+    K(next);
+    if (!weeks.length)
+      W([Math.min(route.params?.week || next.week, next.week)]);
+    if (route.params?.retryTaskUuid) {
+      const p = await post(
+        "/api/task/" + route.params.retryTaskUuid + "/retry-plan",
+      );
+      if (alive.current) {
+        P(p);
+        await currentPlan(p.id);
+      }
+    }
+  };
+  const load = async () => {
+    if (!weeks.length) throw Error("请先选择周次");
+    const version = ++sequence.current,
+      week = Math.min(...weeks);
+    abort.current?.abort();
+    const controller = new AbortController();
+    abort.current = controller;
+    const res = await get(
+      "/api/auth/student-list",
+      { week },
+      { signal: controller.signal },
+    );
+    if (!alive.current || version !== sequence.current) return;
+    if (res.week !== week || res.calendarStartDate !== calendar.startDate)
+      throw Error("名单学期或周次已变化，请重新加载");
+    U(res.students);
+    V(week);
+    S((old) =>
+      old.filter((id) => res.students.some((s) => s.studentId === id)),
+    );
+  };
+  const toggleWeek = (w) => {
+    sequence.current++;
+    abort.current?.abort();
+    W((old) =>
+      old.includes(w)
+        ? old.filter((x) => x !== w)
+        : [...old, w].sort((a, b) => a - b),
+    );
+    V(null);
+    P(null);
+  };
+  const preview = async () => {
+    if (
+      !calendar ||
+      !weeks.length ||
+      !selected.length ||
+      rosterWeek !== Math.min(...weeks)
+    )
+      throw Error("请选择周次，重新加载名单并选择学生");
+    if (weeks.some((w) => !validSchedule(schedule[w], calendar, w)))
+      throw Error("请为每一周填写该周内已实际发生的时间（北京时间）");
+    if (!content.trim()) throw Error("请填写实际工作内容");
+    const r = await post("/api/task/preview", {
+      recordType: type,
+      mode,
+      weeks,
+      studentIds: selected,
+      schedule,
+      content,
+      calendarStartDate: calendar.startDate,
+      durationMinutes: Number(duration),
+      method,
+      scene,
+      pbType,
+    });
+    await currentPlan(r.planId);
+    if (alive.current)
+      P({
+        id: r.planId,
+        state: "scanning",
+        processed: 0,
+        total: weeks.length * selected.length,
+      });
+  };
+  useEffect(() => {
+    if (plan?.state !== "scanning") return;
+    let stopped = false,
+      timer,
+      controller = new AbortController();
+    const poll = async () => {
+      try {
+        const p = await get("/api/task/plans/" + plan.id, undefined, {
+          signal: controller.signal,
+        });
+        if (stopped) return;
+        P(p);
+        E(null);
+        if (p.state === "scanning") timer = setTimeout(poll, 1800);
+      } catch (e) {
+        if (!stopped) E(e);
+      }
+    };
+    timer = setTimeout(poll, 800);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [plan?.id, plan?.state]);
+  const visible = students.filter(
+    (s) =>
+      (!only || selected.includes(s.studentId)) &&
+      (!search || s.name?.includes(search) || s.studentId?.includes(search)),
+  );
+  const start = () =>
+    run(async () => {
+      const r = await post("/api/task/create", {
+        planId: plan.id,
+        requestId: plan.id,
+      });
+      await currentPlan(null);
+      navigation.replace("Progress", { taskUuid: r.taskUuid });
+    });
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }} nestedScrollEnabled={true}>
-      <Text style={styles.title}>{TYPE_NAMES[type]}</Text>
-      {type !== 'batch' && type !== 'fill-missing' && <Text style={styles.subtitle}>当前第{currentWeek}周，请在下方选择录入周次</Text>}
-
-      {calendar && <Text style={styles.subtitle}>{calendar.academicYear}学年 · {calendar.semester} · 学校当前第{calendar.week}周</Text>}
-      {!!calendarError && <Text style={{color:'#b91c1c',marginBottom:12}}>{calendarError}</Text>}
-      {loginStep === 'done' && <TouchableOpacity onPress={syncCalendar}><Text style={{color:'#1B62A5',marginBottom:12}}>重新同步学校学期</Text></TouchableOpacity>}
-
-      {/* Login section */}
-      {loginStep !== 'done' ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>🔐 登录管理系统</Text>
-
-          {loginStep === 'init' && (
-            <View>
-              {checkingLocalCred ? (
-                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
-                  <ActivityIndicator size="small" color="#1B62A5" />
-                  <Text style={[styles.loginHint, { marginTop: 8 }]}>检测凭证状态...</Text>
-                </View>
-              ) : (
-                <>
-                  {hasLocalCred && (
-                    <TouchableOpacity style={styles.btn} onPress={checkLogin} disabled={checking}>
-                      <Text style={styles.btnText}>{checking ? '检测中...' : '密码登录'}</Text>
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity style={[styles.btn, styles.btnQr, hasLocalCred ? { marginTop: 10 } : {}]} onPress={startQrLogin} disabled={checking}>
-                    <Text style={styles.btnText}>{checking ? '获取二维码中...' : '📱 二维码登录'}</Text>
-                  </TouchableOpacity>
-                  {!hasLocalCred && (
-                    <Text style={[styles.loginHint, { marginTop: 10 }]}>推荐使用二维码扫码登录，无需在 App 中保存密码</Text>
-                  )}
-                </>
-              )}
-            </View>
-          )}
-
-          {loginStep === 'qrcode' && (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.loginHint}>{qrMessage || '请使用 HIT APP 扫描二维码'}</Text>
-              {qrCodeImage ? (
-                <TouchableOpacity onLongPress={saveQrCode} activeOpacity={0.8}>
-                  <Image source={{ uri: qrCodeImage }} style={styles.qrCode} resizeMode="contain" />
-                </TouchableOpacity>
-              ) : null}
-              <Text style={styles.saveHint}>长按二维码可保存到相册</Text>
-              <TouchableOpacity style={[styles.btn, { marginTop: 10, width: '100%' }]} onPress={checkQrLogin} disabled={checkingQr}>
-                <Text style={styles.btnText}>{checkingQr ? '验证中...' : '🔄 已完成扫码，验证登录'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => { setLoginStep('init'); setIsQrMfa(false) }}>
-                <Text style={styles.link}>返回</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {loginStep === 'loginFailed' && (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={[styles.loginHint, { color: '#FF4D4F' }]}>❌ {loginFailedMsg}</Text>
-              {loginFailedScreenshot ? <Image source={{ uri: loginFailedScreenshot }} style={styles.screenshot} resizeMode="contain" /> : null}
-              <TouchableOpacity style={[styles.btn, { marginTop: 10 }]} onPress={checkLogin} disabled={checking}>
-                <Text style={styles.btnText}>重试登录</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {loginStep === 'needCaptcha' && (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.loginHint}>需要输入图片验证码</Text>
-              <Image source={{ uri: captchaImage }} style={styles.captcha} resizeMode="contain" />
-              <View style={styles.row}>
-                <TextInput style={styles.input} value={captchaText} onChangeText={setCaptchaText} placeholder="输入验证码" maxLength={6} />
-                <TouchableOpacity style={styles.smallBtn} onPress={submitCaptcha} disabled={submitting}>
-                  <Text style={styles.btnText}>提交</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {loginStep === 'needCode' && (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.loginHint}>已发送验证码，打开 认证APP 查看</Text>
-              <View style={styles.row}>
-                <TextInput style={styles.input} value={code} onChangeText={setCode} placeholder="6位验证码" keyboardType="number-pad" maxLength={6} />
-                <TouchableOpacity style={styles.smallBtn} onPress={submitCode} disabled={submitting}>
-                  <Text style={styles.btnText}>提交</Text>
-                </TouchableOpacity>
-              </View>
-              {resending ? <Text style={[styles.link, { color: '#ccc' }]}>重新发送中...</Text> :
-                <TouchableOpacity onPress={resendCode}><Text style={styles.link}>未收到？重新发送</Text></TouchableOpacity>}
-            </View>
-          )}
-        </View>
-      ) : (
-        /* Post-login */
-        <View>
-          <View style={styles.card}>
-            <View style={styles.headerRow}>
-              <Text style={styles.cardTitle}>📅 选择周次（多选）</Text>
-              <TouchableOpacity onPress={toggleAllWeeks}>
-                <Text style={styles.toggleAll}>{weekAllChecked ? '全不选' : '全选'}</Text>
-              </TouchableOpacity>
-            </View>
-            {weekList.map(w => (
-              <TouchableOpacity key={w.val} style={[styles.weekCheckRow, w.checked && styles.weekCheckRowActive]} onPress={() => toggleWeek(w.val)}>
-                <Text style={styles.checkLabel}>{w.checked ? '☑' : '☐'} 第{w.val}周{w.range ? ` ${w.range}` : ''}</Text>
-                <Text style={styles.hintText}>{w.hint}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {(
-            <View style={styles.card}>
-              <View style={styles.headerRow}>
-                <Text style={styles.cardTitle}>👥 学生列表</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  {students.length > 0 && <Text style={styles.countText}>已选 {selectedCount}/{students.length}</Text>}
-                  {students.length > 0 && (
-                    <TouchableOpacity onPress={toggleAllStudents}>
-                      <Text style={styles.toggleAll}>{studentAllChecked ? '全不选' : '全选'}</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-              {loadingStudents ? (
-                <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                  <ActivityIndicator size="small" color="#1B62A5" />
-                  <Text style={[styles.emptyText, { marginTop: 8 }]}>加载学生列表...</Text>
-                </View>
-              ) : students.length === 0 ? (
-                <TouchableOpacity style={styles.loadBtn} onPress={loadStudents}>
-                  <Text style={styles.loadBtnText}>加载学生列表</Text>
-                </TouchableOpacity>
-              ) : (
-                <ScrollView style={styles.studentScroll} nestedScrollEnabled={true}>
-                  {students.map(s => (
-                    <TouchableOpacity key={s.index} style={styles.studentRow} onPress={() => toggleStudent(s.index)}>
-                      <Text style={styles.checkLabel}>{s._checked ? '☑' : '☐'}</Text>
-                      <Text style={styles.studentName}>{s.name}</Text>
-                      {s._hasRecord ? <Text style={styles.recordedTag}>已录入</Text> : null}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-          )}
-
-          {type === 'fill-missing' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🔍 自动扫描补录</Text>
-              <Text style={styles.descText}>扫描第1周～当前周所有奇数周</Text>
-              <Text style={styles.descText}>对标记"差x次"学生强制补录陪伴上课</Text>
-              <Text style={styles.descText}>跳过已有记录，只补缺失次数</Text>
-            </View>
-          )}
-
-          {type === 'companion' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>📝 陪伴类型</Text>
-              <View style={styles.tagRow}>
-                {['共同上课', '共同进餐', '共上自习', '共同运动'].map(t => (
-                  <TouchableOpacity key={t} style={[styles.tag, pbType === t && styles.tagActive]} onPress={() => { setPbType(t); setContentText(t === '共同上课' ? '查课' : '') }}>
-                    <Text style={[styles.tagText, pbType === t && styles.tagTextActive]}>{t}</Text>
-                  </TouchableOpacity>
+    <Page>
+      <Title>
+        {mode === "missing" ? "核对缺失，再补录" : "录入实际工作记录"}
+      </Title>
+      <ErrorBox
+        error={error}
+        onRetry={() =>
+          run(async () => {
+            if (plan) P(await get("/api/task/plans/" + plan.id));
+            else if (calendar) await load();
+          })
+        }
+      />
+      <SchoolLogin onReady={ready} />
+      {calendar && (
+        <>
+          <Card>
+            <Body>
+              {calendar.academicYear}学年 · {calendar.semester} · 学校当前第
+              {calendar.week}周
+            </Body>
+            <Body muted>
+              基准 {calendar.startDate}；每条记录按所选周次在学校网页内复核。
+            </Body>
+            <Choice
+              label="谈话"
+              selected={type === "talk"}
+              onPress={() => {
+                T("talk");
+                P(null);
+              }}
+            />
+            <Choice
+              label="陪伴"
+              selected={type === "companion"}
+              onPress={() => {
+                T("companion");
+                P(null);
+              }}
+            />
+            <Choice
+              label="仅补该类型在该周完全缺失的记录"
+              selected={mode === "missing"}
+              onPress={() => {
+                M(mode === "missing" ? "record" : "missing");
+                P(null);
+              }}
+            />
+            <Body muted>
+              学校其他类型要求需另行核对，此处不会自动推断走访或凑足次数。
+            </Body>
+          </Card>
+          {!plan && (
+            <>
+              <Card>
+                <Body>1 · 选择周次</Body>
+                {calendar.weeks.map((w) => (
+                  <Choice
+                    key={w.week}
+                    label={"第" + w.week + "周 · " + w.range}
+                    selected={weeks.includes(w.week)}
+                    onPress={() => toggleWeek(w.week)}
+                  />
                 ))}
-              </View>
-              <Text style={styles.cardTitle}>✏️ 工作内容</Text>
-              <TextInput style={styles.textInput} value={contentText} onChangeText={setContentText} placeholder="请输入工作内容" />
-            </View>
-          )}
-
-          {type === 'talk' && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🏠 谈话场景</Text>
-              <View style={styles.tagRow}>
-                {['走访寝室', '走访课堂'].map(s => (
-                  <TouchableOpacity key={s} style={[styles.tag, scene === s && styles.tagActive]} onPress={() => { setScene(s); setContentText(s === '走访寝室' ? '查寝' : '查课') }}>
-                    <Text style={[styles.tagText, scene === s && styles.tagTextActive]}>{s}</Text>
-                  </TouchableOpacity>
+                <Body muted>
+                  已选 {weeks.length}{" "}
+                  周；切换后需重新核对名单，仍在名单中的已选学生会保留。
+                </Body>
+              </Card>
+              <Card>
+                <Body>
+                  2 · 选择学生（已选 {selected.length}/{students.length}）
+                </Body>
+                <Button
+                  title={busy ? "加载中" : "加载 / 重新核对名单"}
+                  loading={busy}
+                  disabled={!weeks.length}
+                  onPress={() => run(load)}
+                />
+                {rosterWeek && (
+                  <Body muted>
+                    基准名单为第{rosterWeek}周；多周差异将在预览中逐人检查。
+                  </Body>
+                )}
+                <Field
+                  label="按姓名或学号搜索"
+                  value={search}
+                  onChangeText={Q}
+                />
+                <Choice
+                  label="只看已选学生"
+                  selected={only}
+                  onPress={() => O(!only)}
+                />
+                <Button
+                  title="选择当前搜索结果"
+                  secondary
+                  disabled={!rosterWeek}
+                  onPress={() =>
+                    S((old) => [
+                      ...new Set([...old, ...visible.map((s) => s.studentId)]),
+                    ])
+                  }
+                />
+                <Button title="清空选择" secondary onPress={() => S([])} />
+                {visible.map((s) => (
+                  <Choice
+                    key={s.studentId}
+                    label={s.name + " · " + s.studentId}
+                    selected={selected.includes(s.studentId)}
+                    onPress={() =>
+                      S((old) =>
+                        old.includes(s.studentId)
+                          ? old.filter((id) => id !== s.studentId)
+                          : [...old, s.studentId],
+                      )
+                    }
+                  />
                 ))}
-              </View>
-              <Text style={styles.cardTitle}>✏️ 工作内容</Text>
-              <TextInput style={styles.textInput} value={contentText} onChangeText={setContentText} placeholder="请输入工作内容" />
-            </View>
+                {!visible.length && <Body muted>当前没有匹配学生。</Body>}
+              </Card>
+              <Card>
+                <Body>3 · 实际发生时间（北京时间）</Body>
+                {weeks.map((w) => (
+                  <View key={w} style={{ gap: 8 }}>
+                    <Body>
+                      第{w}周：{schedule[w] || "尚未填写"}
+                    </Body>
+                    <Button
+                      title={"选择第" + w + "周日期与时间"}
+                      secondary
+                      onPress={() =>
+                        J({
+                          week: w,
+                          mode: "date",
+                          value: schedule[w]
+                            ? new Date(schedule[w].replace(" ", "T") + "+08:00")
+                            : bounds(calendar, w).initial,
+                        })
+                      }
+                    />
+                  </View>
+                ))}
+                <Body muted>
+                  时间必须在对应周内且不能晚于现在。批量共用时间仅适用于实际共同发生的工作。
+                </Body>
+                {picker && (
+                  <DateTimePicker
+                    key={picker.mode}
+                    value={picker.value}
+                    mode={picker.mode}
+                    is24Hour
+                    timeZoneName="Asia/Shanghai"
+                    minimumDate={bounds(calendar, picker.week).min}
+                    maximumDate={bounds(calendar, picker.week).max}
+                    onChange={(e, date) => {
+                      if (e.type === "dismissed" || !date) {
+                        J(null);
+                        return;
+                      }
+                      if (picker.mode === "date")
+                        J({ ...picker, mode: "time", value: date });
+                      else {
+                        D((old) => ({
+                          ...old,
+                          [picker.week]: formatActivity(date),
+                        }));
+                        J(null);
+                      }
+                    }}
+                  />
+                )}
+                <Field
+                  label="实际工作内容（最多 250 字）"
+                  multiline
+                  maxLength={250}
+                  value={content}
+                  onChangeText={C}
+                />
+                {type === "talk" ? (
+                  <>
+                    <Field
+                      label="谈话时长（分钟）"
+                      value={duration}
+                      onChangeText={N}
+                      keyboardType="number-pad"
+                    />
+                    {["面对面", "电话", "网络"].map((v) => (
+                      <Choice
+                        key={v}
+                        label={v}
+                        selected={method === v}
+                        onPress={() => F(v)}
+                      />
+                    ))}
+                    <Field
+                      label="谈话场景（与学校选项一致）"
+                      value={scene}
+                      onChangeText={G}
+                    />
+                  </>
+                ) : (
+                  <Field
+                    label="陪伴类型（与学校选项一致）"
+                    value={pbType}
+                    onChangeText={H}
+                  />
+                )}
+                <Button
+                  title="检查已有记录，生成预览"
+                  loading={busy}
+                  onPress={() => run(preview)}
+                />
+              </Card>
+            </>
           )}
-
-          <TouchableOpacity style={styles.startBtn} onPress={startRecord} disabled={recording}>
-            <Text style={styles.startBtnText}>{recording ? '创建中...' : '🚀 开始录入'}</Text>
-          </TouchableOpacity>
-        </View>
+        </>
       )}
-    </ScrollView>
-  )
+      {plan && (
+        <Card>
+          <Body>
+            检查预览 · {plan.processed || 0}/{plan.total || 0}
+          </Body>
+          <Body>
+            {{
+              scanning: "正在逐项检查，尚未录入",
+              ready: "检查完成，请核对后提交",
+              cancelled: "检查已取消",
+              failed: "检查失败",
+              interrupted: "检查中断，请重新检查",
+            }[plan.state] || plan.state}
+          </Body>
+          {plan.error && <Body>{plan.error}</Body>}
+          {plan.request && (
+            <>
+              <Body>
+                类型：{plan.request.recordType === "talk" ? "谈话" : "陪伴"}；第
+                {plan.request.weeks.join("、")}周
+              </Body>
+              <Body>内容：{plan.request.content}</Body>
+            </>
+          )}
+          {plan.summary && (
+            <Body>
+              待新增 {plan.summary.planned || 0} · 跳过{" "}
+              {plan.summary.skipped || 0} · 不适用{" "}
+              {plan.summary.not_applicable || 0} · 待核查{" "}
+              {plan.summary.unconfirmed || 0}
+            </Body>
+          )}
+          {plan.operations?.map((o, i) => (
+            <View
+              key={o.studentId + "-" + o.week + "-" + i}
+              style={{ gap: 4, paddingVertical: 8 }}
+            >
+              <Body>
+                {o.studentName} · {o.studentId} · 第{o.week}周
+              </Body>
+              <Body muted>
+                {operationLabels[o.status]} · {o.payload.recordedAt}
+                {o.reason ? " · " + o.reason : ""}
+              </Body>
+            </View>
+          ))}
+          {plan.usedBy ? (
+            <Button
+              title="查看已提交任务"
+              onPress={() =>
+                navigation.navigate("Progress", { taskUuid: plan.usedBy })
+              }
+            />
+          ) : (
+            plan.state === "ready" && (
+              <Button
+                title={"确认录入 " + (plan.summary?.planned || 0) + " 项"}
+                disabled={!calendar || !!plan.summary?.unconfirmed}
+                loading={busy}
+                onPress={start}
+              />
+            )
+          )}
+          <Button
+            title={
+              plan.state === "scanning" ? "取消检查" : "关闭预览，重新选择"
+            }
+            secondary
+            loading={busy}
+            onPress={() =>
+              run(async () => {
+                if (plan.state === "scanning") {
+                  await post("/api/task/plans/" + plan.id + "/cancel");
+                  P(await get("/api/task/plans/" + plan.id));
+                } else {
+                  await currentPlan(null);
+                  P(null);
+                }
+              })
+            }
+          />
+          {plan.state === "scanning" && (
+            <Body muted>
+              取消会在本次只读检查结束后生效，不会提交学校记录。
+            </Body>
+          )}
+        </Card>
+      )}
+    </Page>
+  );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#F5F7FA' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#999', marginBottom: 16 },
-  card: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 10 },
-  loginHint: { fontSize: 13, color: '#666', marginBottom: 10, textAlign: 'center' },
-  btn: { backgroundColor: '#1B62A5', borderRadius: 10, height: 48, justifyContent: 'center', alignItems: 'center' },
-  btnQr: { backgroundColor: '#4A90D9' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  smallBtn: { backgroundColor: '#1B62A5', borderRadius: 8, width: 80, height: 44, justifyContent: 'center', alignItems: 'center' },
-  row: { flexDirection: 'row', gap: 8, width: '100%' },
-  input: { flex: 1, height: 44, backgroundColor: '#F5F7FA', borderRadius: 8, paddingHorizontal: 12, fontSize: 18, letterSpacing: 6 },
-  captcha: { width: 200, height: 60, alignSelf: 'center', marginVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
-  qrCode: { width: 260, height: 260, alignSelf: 'center', marginVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
-  saveHint: { fontSize: 11, color: '#ccc', marginBottom: 4 },
-  screenshot: { width: '100%', height: 250, alignSelf: 'center', marginVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#eee' },
-  link: { color: '#1B62A5', fontSize: 13, textAlign: 'center', marginTop: 8, textDecorationLine: 'underline' },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  toggleAll: { fontSize: 13, color: '#1B62A5', paddingHorizontal: 4 },
-  weekCheckRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, backgroundColor: '#FAFAFA', marginBottom: 4 },
-  weekCheckRowActive: { backgroundColor: '#EBF3FC' },
-  countText: { fontSize: 12, color: '#999' },
-  emptyText: { fontSize: 14, color: '#999', textAlign: 'center', paddingVertical: 20 },
-  loadBtn: { backgroundColor: '#F5F7FA', borderRadius: 12, height: 44, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
-  loadBtnText: { color: '#1B62A5', fontSize: 14 },
-  studentScroll: { maxHeight: 300 },
-  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#f0f0f0' },
-  studentName: { flex: 1, fontSize: 15, marginLeft: 10 },
-  recordedTag: { fontSize: 11, color: '#ccc' },
-  descText: { fontSize: 13, color: '#999', marginBottom: 4 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  tag: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: '#F5F5F5' },
-  tagActive: { backgroundColor: '#E8A838' },
-  tagText: { fontSize: 14, color: '#666' },
-  tagTextActive: { color: '#fff' },
-  textInput: { height: 44, backgroundColor: '#F5F7FA', borderRadius: 8, paddingHorizontal: 12, fontSize: 15 },
-  checkLabel: { fontSize: 15, color: '#333' },
-  hintText: { fontSize: 12, color: '#999' },
-  startBtn: { backgroundColor: '#52C41A', borderRadius: 24, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: 8, marginBottom: 40 },
-  startBtnText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-})

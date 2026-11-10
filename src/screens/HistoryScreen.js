@@ -1,55 +1,126 @@
-import React, { useState, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native'
-import { useFocusEffect } from '@react-navigation/native'
-import { get } from '../utils/api'
-
-const TYPE_NAMES = { companion: '录入陪伴', talk: '录入谈话', batch: '一键录入', 'fill-missing': '补录缺失' }
-
+import React, { useCallback, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { get, cacheRead, cacheWrite } from "../utils/api";
+import {
+  ACTIVE,
+  statusLabels,
+  taskTitle,
+  semesterLabel,
+  dateLabel,
+} from "../utils/presentation";
+import {
+  Page,
+  Card,
+  Title,
+  Body,
+  Button,
+  Field,
+  Choice,
+  ErrorBox,
+} from "../components/ui";
 export default function HistoryScreen({ navigation }) {
-  const [items, setItems] = useState([])
-
-  useFocusEffect(useCallback(() => {
-    get('/api/history', { page: 1, pageSize: 50 }).then(r => setItems(r.items)).catch(() => {})
-  }, []))
-
+  const [items, I] = useState([]),
+    [page, P] = useState(1),
+    [more, M] = useState(false),
+    [search, S] = useState(""),
+    [status, F] = useState(""),
+    [error, E] = useState(null),
+    [cached, C] = useState(false),
+    [busy, B] = useState(false);
+  const seq = useRef(0),
+    live = useRef(true);
+  const load = async (next = 1) => {
+    const n = ++seq.current;
+    B(true);
+    E(null);
+    try {
+      const r = await get("/api/history", {
+        page: next,
+        pageSize: 20,
+        search,
+        status,
+      });
+      if (!live.current || n !== seq.current) return;
+      I((old) => (next === 1 ? r.items : [...old, ...r.items]));
+      P(next);
+      M(r.hasMore);
+      C(false);
+      if (next === 1) await cacheWrite("history", r.items);
+    } catch (e) {
+      if (!live.current || n !== seq.current) return;
+      E(e);
+      if (next === 1) {
+        const c = await cacheRead("history");
+        if (c && live.current && n === seq.current) {
+          I(c);
+          C(true);
+          M(false);
+        }
+      }
+    } finally {
+      if (live.current && n === seq.current) B(false);
+    }
+  };
+  useFocusEffect(
+    useCallback(() => {
+      live.current = true;
+      load();
+      return () => {
+        live.current = false;
+        seq.current++;
+      };
+    }, [status]),
+  );
   return (
-    <View style={styles.container}>
-      {items.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📭</Text>
-          <Text style={styles.emptyText}>暂无录入记录</Text>
-          <Text style={styles.emptyHint}>完成一次录入后这里会显示记录</Text>
-        </View>
-      ) : (
-        <FlatList data={items} keyExtractor={i => i.taskUuid}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.item}
-              onPress={() => navigation.navigate('Result', { taskUuid: item.taskUuid })}>
-              <View>
-                <Text style={styles.itemWeek}>第{item.week}周</Text>
-                <Text style={styles.itemType}>{TYPE_NAMES[item.type] || item.type}</Text>
-              </View>
-              <View style={styles.itemRight}>
-                <Text style={styles.itemResult}>✅ {item.success} / {item.total}</Text>
-                <Text style={styles.itemDate}>{item.createdAt?.slice(0, 10)}</Text>
-              </View>
-            </TouchableOpacity>
-          )} />
+    <Page>
+      <Title>任务历史</Title>
+      <Field label="搜索任务编号、学期或选项" value={search} onChangeText={S} />
+      <Button title="搜索 / 刷新" loading={busy} onPress={() => load()} />
+      {[
+        ["", "全部"],
+        ["active", "进行中"],
+        ["completed", "已完成"],
+        ["partial_failed", "部分完成"],
+        ["failed", "失败"],
+        ["interrupted", "中断"],
+        ["cancelled", "取消"],
+      ].map(([v, label]) => (
+        <Choice
+          key={v}
+          label={label}
+          selected={status === v}
+          onPress={() => F(v)}
+        />
+      ))}
+      <ErrorBox error={error} onRetry={() => load()} />
+      {cached && <Body>当前显示本机缓存，状态可能已变化；联网后刷新。</Body>}
+      {!items.length && !busy && !error && <Body>暂无符合条件的任务。</Body>}
+      {items.map((t) => (
+        <Card key={t.taskUuid}>
+          <Body>{taskTitle(t)}</Body>
+          <Body muted>
+            {semesterLabel(t.calendar)} · {dateLabel(t.createdAt)}
+          </Body>
+          <Body>{statusLabels[t.status] || t.status}</Body>
+          <Button
+            title={ACTIVE.includes(t.status) ? "查看实时进度" : "查看结果"}
+            secondary
+            onPress={() =>
+              navigation.navigate(
+                ACTIVE.includes(t.status) ? "Progress" : "Result",
+                { taskUuid: t.taskUuid },
+              )
+            }
+          />
+        </Card>
+      ))}
+      {more && (
+        <Button
+          title="加载下一页"
+          loading={busy}
+          onPress={() => load(page + 1)}
+        />
       )}
-    </View>
-  )
+    </Page>
+  );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  item: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', marginHorizontal: 12, marginTop: 8, borderRadius: 12, padding: 16 },
-  itemWeek: { fontSize: 16, fontWeight: '600' },
-  itemType: { fontSize: 13, color: '#999', marginTop: 2 },
-  itemRight: { alignItems: 'flex-end' },
-  itemResult: { color: '#52C41A', fontWeight: '600', fontSize: 15 },
-  itemDate: { color: '#ccc', fontSize: 11, marginTop: 2 },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyIcon: { fontSize: 64, marginBottom: 16 },
-  emptyText: { color: '#999', fontSize: 16 },
-  emptyHint: { fontSize: 13, color: '#ccc', marginTop: 4 },
-})
