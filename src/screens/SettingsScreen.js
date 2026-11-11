@@ -128,6 +128,12 @@ export default function SettingsScreen({ navigation }) {
         {advanced && (
           <Card style={{ paddingVertical: 6 }}>
             <RowLink
+              title="教务连接验证"
+              icon="school-outline"
+              detail="独立 VPN 会话，仅验证连接"
+              onPress={() => navigation.navigate("AcademicAccess")}
+            />
+            <RowLink
               title="迁移与恢复"
               icon="key-outline"
               detail="换机或重装时使用"

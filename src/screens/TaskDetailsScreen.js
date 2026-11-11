@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, FlatList } from "react-native";
 import { get } from "../utils/api";
 import {
   Page,
   Body,
+  Button,
   Field,
   Choice,
   ErrorBox,
@@ -17,27 +18,43 @@ export default function TaskDetailsScreen({ route }) {
     [error, E] = useState(null),
     [query, Q] = useState(""),
     [issues, F] = useState(false);
+  const [page, P] = useState(1),
+    [more, M] = useState(false),
+    [total, N] = useState(0),
+    [busy, B] = useState(false),
+    seq = useRef(0);
+  const load = async (next = 1) => {
+    const ticket = ++seq.current;
+    B(true);
+    try {
+      const r = await get("/api/task/" + route.params.taskUuid + "/details", {
+        page: next,
+        pageSize: 30,
+        query,
+        issues: issues ? "1" : "0",
+      });
+      if (ticket !== seq.current) return;
+      T((old) => ({
+        details: next === 1 ? r.items : [...(old?.details || []), ...r.items],
+      }));
+      P(next);
+      M(r.hasMore);
+      N(r.total);
+      E(null);
+    } catch (e) {
+      if (ticket === seq.current) E(e);
+    } finally {
+      if (ticket === seq.current) B(false);
+    }
+  };
   useEffect(() => {
-    let live = true;
-    get("/api/task/" + route.params.taskUuid)
-      .then((t) => live && T(t))
-      .catch((e) => live && E(e));
+    const timer = setTimeout(() => void load(), 250);
     return () => {
-      live = false;
+      clearTimeout(timer);
+      seq.current++;
     };
-  }, [route.params.taskUuid]);
-  const rows = (task?.details || []).filter(
-    (d) =>
-      (!query || d.name?.includes(query) || d.studentId?.includes(query)) &&
-      (!issues ||
-        [
-          "failed",
-          "unconfirmed",
-          "planned",
-          "cancelled",
-          "not_applicable",
-        ].includes(d.status)),
-  );
+  }, [route.params.taskUuid, query, issues]);
+  const rows = task?.details || [];
   return (
     <Page scroll={false}>
       <View style={{ gap: 12, paddingVertical: 16 }}>
@@ -53,10 +70,24 @@ export default function TaskDetailsScreen({ route }) {
           onPress={() => F(!issues)}
         />
         <ErrorBox error={error} />
-        <Body muted>匹配 {rows.length} 项</Body>
+        <Body muted>
+          匹配 {total} 项 · 已加载 {rows.length} 项
+        </Body>
       </View>
       <FlatList
         data={rows}
+        ListEmptyComponent={
+          <Body muted>{busy ? "正在读取明细…" : "当前筛选没有记录"}</Body>
+        }
+        ListFooterComponent={
+          more ? (
+            <Button
+              title="加载更多明细"
+              loading={busy}
+              onPress={() => load(page + 1)}
+            />
+          ) : null
+        }
         keyExtractor={(d, i) => String(d.id || i)}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderItem={({ item: d }) => (

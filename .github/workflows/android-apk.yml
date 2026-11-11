@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [feat/overview-school-targets]
+    branches: [feat/reliability-overview-v16]
   workflow_dispatch:
 jobs:
   apk:
@@ -21,6 +21,7 @@ jobs:
         with:
           cache-read-only: false
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/check-version.cjs
       - run: npm test
       - name: Set up pinned Android SDK command tools
         shell: bash

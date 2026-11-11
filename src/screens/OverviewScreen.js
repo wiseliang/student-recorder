@@ -20,10 +20,10 @@ import { useSchool } from "../state/SchoolContext";
 import { get, post, cacheRead, cacheWrite, currentPlan } from "../utils/api";
 import { useForeground } from "../utils/useForeground";
 const labels = { talk: "谈话", visit: "走访", companion: "陪伴" };
-export default function OverviewScreen({ navigation }) {
+export default function OverviewScreen({ navigation, route }) {
   const { school } = useSchool(),
     foreground = useForeground();
-  const [kind, K] = useState("academic"),
+  const [kind, K] = useState(route?.params?.kind || "academic"),
     [target, T] = useState("1"),
     [data, D] = useState(null),
     [scan, S] = useState(null),
@@ -132,16 +132,23 @@ export default function OverviewScreen({ navigation }) {
       };
     }, [kind, target, query, filter, school.connectionId]),
   );
-  const refresh = async () => {
+  const refresh = async (full = false, selectedKind = kind) => {
     if (lock.current) return;
     lock.current = true;
     B(true);
     E(null);
     try {
-      const r = await post("/api/overview/scan", { kind });
-      const pending = { ...r, kind, connectionId: school.connectionId };
+      const r = await post("/api/overview/scan", {
+        kind: selectedKind,
+        full: full === true,
+      });
+      const pending = {
+        ...r,
+        kind: selectedKind,
+        connectionId: school.connectionId,
+      };
       S(pending);
-      await cacheWrite("overviewScan." + kind, pending);
+      await cacheWrite("overviewScan." + selectedKind, pending);
       N("正在读取新数据，当前保留上次完整统计。");
     } catch (e) {
       E(e);
@@ -222,6 +229,15 @@ export default function OverviewScreen({ navigation }) {
       clearTimeout(timer);
     };
   }, [scan?.id, foreground]);
+  useFocusEffect(
+    useCallback(() => {
+      if (route?.params?.refreshAfterTask) {
+        K(route.params.kind || "academic");
+        navigation.setParams({ refreshAfterTask: false });
+        void refresh(false, route.params.kind || "academic");
+      }
+    }, [route?.params?.refreshAfterTask]),
+  );
   const showDetail = async (s) => {
     B(true);
     try {
@@ -288,6 +304,10 @@ export default function OverviewScreen({ navigation }) {
           (s.name + " " + s.studentId)
             .toLowerCase()
             .includes(query.trim().toLowerCase())) &&
+          (filter !== "current" ||
+            s.weeks?.some((w) => w.current && !w.complete)) &&
+          (filter !== "count" || (s.remainingCount ?? s.remaining ?? 0) > 0) &&
+          (filter !== "round" || s.roundMissingCount > 0) &&
           (filter !== "unknown" || s.unknown) &&
           (filter !== "missing" ||
             (s.remaining ?? s.expected - s.completed) > 0 ||
@@ -406,13 +426,40 @@ export default function OverviewScreen({ navigation }) {
               : [
                   ["未达标人数", count.missingStudents],
                   ["尚需次数", count.missingCounts],
-                  ["未来记录", count.futureCount],
+                  [
+                    "待核实记录",
+                    (count.futureCount || 0) + (count.invalidCount || 0),
+                  ],
                 ]
             ).map(([label, value]) => (
-              <View key={label} style={{ flex: 1 }}>
+              <Pressable
+                key={label}
+                accessibilityRole="button"
+                accessibilityLabel={`查看${label}明细`}
+                style={{ flex: 1, minHeight: 44 }}
+                onPress={() => {
+                  if (label === "未核实周")
+                    N(
+                      data.weeks
+                        .filter((w) => w.error)
+                        .map((w) => `第${w.week}周：${w.error}`)
+                        .join("；") || "所有周次均已核实",
+                    );
+                  else
+                    F(
+                      label === "次数缺口"
+                        ? "count"
+                        : label === "轮次缺项"
+                          ? "round"
+                          : label === "待核实记录"
+                            ? "unknown"
+                            : "missing",
+                    );
+                }}
+              >
                 <Text style={{ fontSize: 23, color: "#FFF" }}>{value}</Text>
                 <Text style={{ fontSize: 12, color: "#DCEBFA" }}>{label}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
           {!count.complete && (
@@ -422,7 +469,7 @@ export default function OverviewScreen({ navigation }) {
           )}
           {academic && (
             <Body style={{ color: "#DCEBFA" }}>
-              学校应计 {count.requiredCount} 次，已满足 {count.completedCount}{" "}
+              学校应计 {count.requiredCount} 次，学校已计 {count.completedCount}{" "}
               次；轮次缺项按各周谈话、走访、陪伴分别核对。
             </Body>
           )}
@@ -438,20 +485,26 @@ export default function OverviewScreen({ navigation }) {
           </Body>
           <Button
             secondary
-            title="查看本周待完成并去补录"
+            title="查看本周待完成学生"
             disabled={!count.complete || busy || !!scan}
-            onPress={() => fill(true)}
+            onPress={() => F("current")}
           />
         </Card>
       )}
       {data && (
         <Body muted>
           {cached ? "本机缓存 · " : data.stale ? "较早快照 · " : ""}
-          {data.profile ? data.profile + " · " : ""}学校数据读取于{" "}
+          {data.profile ? data.profile + " · " : ""}本次更新完成于{" "}
           {new Date(data.readCompletedAt).toLocaleString("zh-CN", {
             hour12: false,
           })}
           。录入后请更新，任务成功数不会直接加到旧快照。
+        </Body>
+      )}
+      {!!data?.reusedWeeks?.length && (
+        <Body muted>
+          复用了 {data.reusedWeeks.length}{" "}
+          个已核实历史周（最长6小时）；本周及变动周已重读，可完整刷新重新核对全部记录。
         </Body>
       )}
       {!!notice && <Body muted>{notice}</Body>}
@@ -462,8 +515,21 @@ export default function OverviewScreen({ navigation }) {
         }
         loading={busy || !!scan}
         disabled={!!scan}
-        onPress={refresh}
+        onPress={() => refresh(false)}
       />
+      {!!data?.dirtyWeeks?.length && (
+        <Body muted>
+          录入后第 {data.dirtyWeeks.join("、")} 周有变化，更新将优先核对这些周。
+        </Body>
+      )}
+      {data && !scan && (
+        <Button
+          title="完整重读整个学期"
+          secondary
+          disabled={busy}
+          onPress={() => refresh(true)}
+        />
+      )}
       {scan && (
         <>
           <Body muted>
@@ -496,10 +562,17 @@ export default function OverviewScreen({ navigation }) {
             value={query}
             onChangeText={Q}
           />
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {[
               ["all", "全部"],
-              ["missing", academic ? "有缺漏" : "未达标"],
+              ["missing", academic ? "往周缺漏" : "未达标"],
+              ...(academic
+                ? [
+                    ["current", "本周待完成"],
+                    ["count", "次数缺口"],
+                    ["round", "轮次缺项"],
+                  ]
+                : []),
               ["unknown", "待核实"],
             ].map(([value, label]) => (
               <Pressable
@@ -540,10 +613,14 @@ export default function OverviewScreen({ navigation }) {
           <>
             <Button
               title={
-                academic ? "查看往周缺漏并去补录" : "查看未达标学生并去补录"
+                academic
+                  ? filter === "current"
+                    ? "查看本周待完成并去补录"
+                    : "查看往周缺漏并去补录"
+                  : "查看未达标学生并去补录"
               }
               disabled={busy || !!scan || !count?.complete || cached}
-              onPress={() => fill(false)}
+              onPress={() => fill(filter === "current")}
             />
             <Body muted>带入范围后仍需重新读取名单、核对预览并手动确认。</Body>
           </>
@@ -558,6 +635,13 @@ export default function OverviewScreen({ navigation }) {
         windowSize={5}
         ListHeaderComponent={header}
         contentContainerStyle={{ paddingBottom: 20 }}
+        ListEmptyComponent={
+          !busy && data ? (
+            <Body muted>
+              当前筛选没有匹配学生；可切换往周、本周或待核实范围。
+            </Body>
+          ) : null
+        }
         renderItem={({ item: s }) => (
           <Pressable
             accessibilityRole="button"
@@ -587,7 +671,7 @@ export default function OverviewScreen({ navigation }) {
             <Body muted>{s.studentId}</Body>
             <Body style={{ color: s.unknown ? colors.warning : colors.muted }}>
               {s.unknown
-                ? "学校有异常记录，请先核实"
+                ? "部分记录待核实，可查看具体周次；异常项不会自动补写"
                 : academic
                   ? `次数还差 ${s.remainingCount} · 轮次缺项 ${s.roundMissingCount}`
                   : s.remaining
@@ -702,9 +786,11 @@ export default function OverviewScreen({ navigation }) {
                       {{ 1: "面对面", 2: "电话", 3: "网络" }[r.method] ||
                         "学校记录"}
                     </Body>
-                    {r.future && (
+                    {(r.future || r.invalid) && (
                       <Body style={{ color: colors.warning }}>
-                        未来时间，未计入已完成
+                        {r.invalid
+                          ? "时间或时长异常，未计入已完成"
+                          : "未来时间，未计入已完成"}
                       </Body>
                     )}
                   </>

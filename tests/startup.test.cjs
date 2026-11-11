@@ -330,16 +330,103 @@ test("result labels distinguish unarranged, not yet due and uncertain saves", ()
   assert.match(operationLabel({ status: "unconfirmed" }), /待回查/);
 });
 
-test('login completion waits for the pre-login status read before fetching the fresh connection',async()=>{
- let calls=0,release;const old=new Promise(r=>release=r),states=[];
- const react={createContext:()=>({Provider:'provider'}),useState:(value)=>{const i=states.length;states.push(value);return [value,next=>{states[i]=typeof next==='function'?next(states[i]):next}]},useRef:value=>({current:value}),useCallback:fn=>fn,useEffect:()=>{},createElement:(_component,props)=>props};
- const code=babel.transformSync(fs.readFileSync(path.join(__dirname,'../src/state/SchoolContext.js'),'utf8'),{configFile:false,babelrc:false,plugins:['@babel/plugin-transform-modules-commonjs','@babel/plugin-transform-react-jsx']}).code,exports={};
- vm.runInNewContext(code,{exports,require:n=>n==='react'?react:n==='react-native'?{AppState:{}}:{get:async()=>++calls===1?old:{hasActiveSession:true,calendar:{startDate:'2026-08-31'}},onSchoolExpired:()=>{}},Date});
- const {value}=exports.SchoolProvider({children:null});const stale=value.refresh(),connected=value.connected({startDate:'2026-08-31'});
- assert.equal(calls,1);release({hasActiveSession:false});await stale;await connected;
- assert.equal(calls,2);assert.equal(states[0].hasActiveSession,true);assert.equal(states[0].loading,false);
+test("login completion waits for the pre-login status read before fetching the fresh connection", async () => {
+  let calls = 0,
+    release;
+  const old = new Promise((r) => (release = r)),
+    states = [];
+  const react = {
+    createContext: () => ({ Provider: "provider" }),
+    useState: (value) => {
+      const i = states.length;
+      states.push(value);
+      return [
+        value,
+        (next) => {
+          states[i] = typeof next === "function" ? next(states[i]) : next;
+        },
+      ];
+    },
+    useRef: (value) => ({ current: value }),
+    useCallback: (fn) => fn,
+    useEffect: () => {},
+    createElement: (_component, props) => props,
+  };
+  const code = babel.transformSync(
+      fs.readFileSync(
+        path.join(__dirname, "../src/state/SchoolContext.js"),
+        "utf8",
+      ),
+      {
+        configFile: false,
+        babelrc: false,
+        plugins: [
+          "@babel/plugin-transform-modules-commonjs",
+          "@babel/plugin-transform-react-jsx",
+        ],
+      },
+    ).code,
+    exports = {};
+  vm.runInNewContext(code, {
+    exports,
+    require: (n) =>
+      n === "react"
+        ? react
+        : n === "react-native"
+          ? { AppState: {} }
+          : {
+              get: async () =>
+                ++calls === 1
+                  ? old
+                  : {
+                      hasActiveSession: true,
+                      calendar: { startDate: "2026-08-31" },
+                    },
+              onSchoolExpired: () => {},
+            },
+    Date,
+  });
+  const { value } = exports.SchoolProvider({ children: null });
+  const stale = value.refresh(),
+    connected = value.connected({ startDate: "2026-08-31" });
+  assert.equal(calls, 1);
+  release({ hasActiveSession: false });
+  await stale;
+  await connected;
+  assert.equal(calls, 2);
+  assert.equal(states[0].hasActiveSession, true);
+  assert.equal(states[0].loading, false);
 });
 
-test('a preview built with the old once-per-week rule is reloaded when school requirement rules change',()=>{
- const recovery=moduleAt('utils/flowRecovery.js');assert.equal(recovery.needsRosterReload({code:'ACADEMIC_RULES_UPDATED'}),true);assert.equal(recovery.needsRosterReload({code:'ACADEMIC_RULES_UNKNOWN'}),false);
+test("a preview built with the old once-per-week rule is reloaded when school requirement rules change", () => {
+  const recovery = moduleAt("utils/flowRecovery.js");
+  assert.equal(
+    recovery.needsRosterReload({ code: "ACADEMIC_RULES_UPDATED" }),
+    true,
+  );
+  assert.equal(
+    recovery.needsRosterReload({ code: "ACADEMIC_RULES_UNKNOWN" }),
+    false,
+  );
+});
+
+test("per-business preview registry preserves both workflows and homepage finds the remaining preview", async () => {
+  const api = moduleAt("utils/api.js");
+  await api.currentPlan("academic-plan", "school.academic.automatic");
+  await api.currentPlan("worklog-plan", "school.worklog.talk");
+  assert.equal(
+    await api.currentPlan(undefined, "school.academic.automatic"),
+    "academic-plan",
+  );
+  assert.equal(
+    await api.currentPlan(undefined, "school.worklog.talk"),
+    "worklog-plan",
+  );
+  await api.currentPlan(null, "school.worklog.talk");
+  assert.equal(await api.currentPlan(), "academic-plan");
+});
+test("account and dictionary changes force a fresh roster rather than replaying a stale preview", () => {
+  const recovery = moduleAt("utils/flowRecovery.js");
+  for (const code of ["SCHOOL_ACCOUNT_CHANGED", "SCHOOL_OPTIONS_CHANGED"])
+    assert.equal(recovery.needsRosterReload({ code }), true);
 });

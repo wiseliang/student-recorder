@@ -5,6 +5,8 @@ const expiredCodes = new Set([
   "ACADEMIC_SNAPSHOT_NOT_FOUND",
   "PLAN_EXPIRED",
   "ACADEMIC_RULES_UPDATED",
+  "SCHOOL_ACCOUNT_CHANGED",
+  "SCHOOL_OPTIONS_CHANGED",
 ]);
 export function needsRosterReload(error) {
   return expiredCodes.has(error?.code);

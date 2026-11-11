@@ -17,6 +17,7 @@ import {
 import { DateField, TimeField } from "./DateControls";
 import { operationLabels } from "../utils/presentation";
 export default function PlanPreview({ plan, onEdit, busy, error }) {
+  const [purpose, FP] = useState("all");
   const [all, A] = useState(false),
     [edit, E] = useState(null),
     [date, D] = useState(""),
@@ -71,7 +72,14 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
       )}
     </View>
   );
-  const rows = (plan.operations || []).map((op, index) => ({ op, index })),
+  const rows = (plan.operations || [])
+      .map((op, index) => ({ op, index }))
+      .filter(
+        ({ op }) =>
+          purpose === "all" ||
+          (purpose === "not_applicable" && op.status === "not_applicable") ||
+          op.payload.academicGoal === purpose,
+      ),
     save = async () => {
       const ok = await onEdit({
         operationIndex: edit.index,
@@ -127,6 +135,27 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
             项其他轮次举措未补齐，可从一键录入处理。
           </Body>
         )}
+        <Body muted>
+          共 {new Set((plan.operations || []).map((o) => o.studentId)).size} 人
+          · {(plan.operations || []).length} 条记录项
+        </Body>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {[
+            ["all", "全部"],
+            ["count", "补次数"],
+            ["visit", "补走访"],
+            ["talk", "补谈话"],
+            ["companion", "补陪伴"],
+            ["not_applicable", "未安排"],
+          ].map(([value, label]) => (
+            <Button
+              key={value}
+              secondary={purpose !== value}
+              title={label}
+              onPress={() => FP(value)}
+            />
+          ))}
+        </View>
         {rows.slice(0, 3).map((item) => (
           <View key={item.index}>{row({ item })}</View>
         ))}

@@ -1,11 +1,14 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { get, post } from "../utils/api";
 import { ACTIVE } from "../utils/presentation";
 import { Page, Card, Body, Button, ErrorBox } from "../components/ui";
+import { useSchool } from "../state/SchoolContext";
 import SchoolGate from "../components/SchoolGate";
 import TaskView from "../components/TaskView";
 export default function ResultScreen({ route, navigation }) {
+  const { school } = useSchool(),
+    resumeVerify = useRef(false);
   const uuid = route.params.taskUuid,
     [task, T] = useState(null),
     [error, E] = useState(null),
@@ -14,7 +17,7 @@ export default function ResultScreen({ route, navigation }) {
   useFocusEffect(
     useCallback(() => {
       let live = true;
-      get("/api/task/" + uuid)
+      get("/api/task/" + uuid, { summary: 1 })
         .then((t) => live && T(t))
         .catch((e) => live && E(e));
       return () => {
@@ -27,19 +30,27 @@ export default function ResultScreen({ route, navigation }) {
     E(null);
     try {
       await post("/api/task/" + uuid + "/verify");
-      T(await get("/api/task/" + uuid));
+      T(await get("/api/task/" + uuid, { summary: 1 }));
     } catch (e) {
       E(e);
-      if (["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code))
+      if (["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code)) {
+        resumeVerify.current = true;
         navigation.navigate("SchoolLogin", { force: true });
+      }
     } finally {
       B(false);
     }
   };
+  useEffect(() => {
+    if (school.hasActiveSession && resumeVerify.current) {
+      resumeVerify.current = false;
+      void verifySchool();
+    }
+  }, [school.hasActiveSession]);
   const reload = async () => {
     B(true);
     try {
-      T(await get("/api/task/" + uuid));
+      T(await get("/api/task/" + uuid, { summary: 1 }));
       E(null);
     } catch (e) {
       E(e);
@@ -65,9 +76,7 @@ export default function ResultScreen({ route, navigation }) {
                 <Body>
                   重试前会重新读取学校记录，并回查不确定项。仅补录确认未保存或未执行的部分；结果仍不确定时，同一学生的相关项继续保留。
                 </Body>
-                {task.details?.some((d) =>
-                  ["failed", "planned", "cancelled"].includes(d.status),
-                ) && (
+                {task.progress?.retryable > 0 && (
                   <Button
                     title="仅检查并重试失败 / 未执行项"
                     onPress={() =>
@@ -111,6 +120,16 @@ export default function ResultScreen({ route, navigation }) {
                   onPress={reload}
                 />
               </Card>
+              <Button
+                title="更新本次涉及的学校总览"
+                secondary
+                onPress={() =>
+                  navigation.navigate("Overview", {
+                    kind: task.type === "worklog-talk" ? "worklog" : "academic",
+                    refreshAfterTask: true,
+                  })
+                }
+              />
               <Button
                 title="另建一次实际工作记录"
                 secondary
