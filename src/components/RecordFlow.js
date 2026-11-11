@@ -795,10 +795,15 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                     />
                     {(worklog || entry !== "companion") && (
                       <>
-                        {["面对面", "电话", "网络"].map((v) => (
+                        {["面对面", "电话", "网络", "随机"].map((v) => (
                           <Choice
                             key={v}
                             label={v}
+                            detail={
+                              v === "随机"
+                                ? "每条预览分别生成具体方式，可逐条核对或修改"
+                                : undefined
+                            }
                             selected={method === v}
                             onPress={() => M(v)}
                           />

@@ -108,6 +108,9 @@ export default function TaskDetailsScreen({ route }) {
               {d.studentId}
               {d.recordedAt ? " · " + d.recordedAt : ""}
             </Body>
+            {d.type !== "companion" && d.method && (
+              <Body muted>谈话方式：{d.method}</Body>
+            )}
             {d.goal && (
               <Body muted>
                 {

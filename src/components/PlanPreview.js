@@ -14,6 +14,7 @@ import {
   styles,
   colors,
 } from "./ui";
+import Dropdown from "./Dropdown";
 import { DateField, TimeField } from "./DateControls";
 import { operationLabels } from "../utils/presentation";
 export default function PlanPreview({ plan, onEdit, busy, error }) {
@@ -22,12 +23,14 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
     [edit, E] = useState(null),
     [date, D] = useState(""),
     [time, T] = useState(""),
-    [content, C] = useState("");
+    [content, C] = useState(""),
+    [method, M] = useState("面对面");
   const open = (op, index) => {
       E({ op, index });
       D((op.payload.recordedAt || "").slice(0, 10));
       T((op.payload.recordedAt || "").slice(11, 16));
       C(op.payload.content || "");
+      M(op.payload.method || "面对面");
     },
     close = () => (edit ? E(null) : A(false));
   const row = ({ item: { op, index } }) => (
@@ -57,6 +60,9 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
           ? op.payload.recordedAt
           : operationLabels[op.status] || op.status}
       </Body>
+      {op.type !== "companion" && op.payload.method && (
+        <Body muted>谈话方式：{op.payload.method}</Body>
+      )}
       {op.reason && <Body muted>{op.reason}</Body>}
       {op.payload?.ruleVersion === 2 && op.status === "planned" && (
         <Body muted>
@@ -85,6 +91,7 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
         operationIndex: edit.index,
         recordedAt: date + " " + time + ":00",
         content,
+        ...(edit.op.type === "companion" ? {} : { method }),
       });
       if (ok) E(null);
     },
@@ -213,6 +220,17 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
                   onChange={T}
                 />
               </View>
+              {edit.op.type !== "companion" && (
+                <Dropdown
+                  label="实际谈话方式"
+                  value={method}
+                  options={["面对面", "电话", "网络"].map((v) => ({
+                    value: v,
+                    label: v,
+                  }))}
+                  onChange={M}
+                />
+              )}
               <Field
                 label="内容（选填）"
                 value={content}
