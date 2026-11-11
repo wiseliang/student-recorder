@@ -144,6 +144,7 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
             ["all", "全部"],
             ["count", "补次数"],
             ["visit", "补走访"],
+            ["talk", "补谈话"],
             ["companion", "补陪伴"],
             ["not_applicable", "未安排"],
           ].map(([value, label]) => (

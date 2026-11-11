@@ -81,7 +81,7 @@ export default function AcademicAccessScreen() {
               label="本次学校验证码"
               value={code}
               onChangeText={C}
-              keyboardType="number-pad"
+              keyboardType={data?.step === "captcha" ? "default" : "number-pad"}
             />
             <Button
               title="提交验证码并继续"

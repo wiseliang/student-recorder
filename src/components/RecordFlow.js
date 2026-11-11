@@ -1,3 +1,4 @@
+import { useFlowDraft } from "../utils/useFlowDraft";
 import { retainSelection } from "../utils/people";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, Pressable } from "react-native";
@@ -410,51 +411,36 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       void run(action, true);
     }
   }, [foreground, school.hasActiveSession, hydrating]);
-  useEffect(() => {
-    if (hydrating || !calendar?.startDate || route.params?.retryTaskUuid)
-      return;
-    const timer = setTimeout(() => {
-      void cacheWrite(
-        `preferences.${worklog ? "worklog" : "academic"}.${entry}`,
-        { durationMinutes: Number(duration), method, scene, pbType, shifts },
-      ).catch(() => {});
-      void cacheWrite(draftKey, {
-        calendarStartDate: calendar.startDate,
-        step: Math.min(step, 1),
-        weeks,
-        studentIds: ids,
-        content,
-        durationMinutes: Number(duration),
-        method,
-        scene,
-        pbType,
-        shifts,
-        excludeDates: excluded,
-        fromDate: from,
-        toDate: to,
-        skipRecorded: skip,
-        targetCount: Number(target),
-      }).catch(() => {});
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [
-    hydrating,
-    calendar?.startDate,
-    step,
-    weeks,
-    ids,
-    content,
-    duration,
-    method,
-    scene,
-    pbType,
-    shifts,
-    excluded,
-    from,
-    to,
-    skip,
-    target,
-  ]);
+  useFlowDraft({
+    enabled:
+      !hydrating && !!calendar?.startDate && !route.params?.retryTaskUuid,
+    draftKey,
+    preferenceKey: `preferences.${worklog ? "worklog" : "academic"}.${entry}`,
+    preferences: {
+      durationMinutes: Number(duration),
+      method,
+      scene,
+      pbType,
+      shifts,
+    },
+    draft: {
+      calendarStartDate: calendar?.startDate,
+      step: Math.min(step, 1),
+      weeks,
+      studentIds: ids,
+      content,
+      durationMinutes: Number(duration),
+      method,
+      scene,
+      pbType,
+      shifts,
+      excludeDates: excluded,
+      fromDate: from,
+      toDate: to,
+      skipRecorded: skip,
+      targetCount: Number(target),
+    },
+  });
   const load = () =>
     run(async () => {
       NT(null);

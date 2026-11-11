@@ -426,13 +426,40 @@ export default function OverviewScreen({ navigation, route }) {
               : [
                   ["未达标人数", count.missingStudents],
                   ["尚需次数", count.missingCounts],
-                  ["未来记录", count.futureCount],
+                  [
+                    "待核实记录",
+                    (count.futureCount || 0) + (count.invalidCount || 0),
+                  ],
                 ]
             ).map(([label, value]) => (
-              <View key={label} style={{ flex: 1 }}>
+              <Pressable
+                key={label}
+                accessibilityRole="button"
+                accessibilityLabel={`查看${label}明细`}
+                style={{ flex: 1, minHeight: 44 }}
+                onPress={() => {
+                  if (label === "未核实周")
+                    N(
+                      data.weeks
+                        .filter((w) => w.error)
+                        .map((w) => `第${w.week}周：${w.error}`)
+                        .join("；") || "所有周次均已核实",
+                    );
+                  else
+                    F(
+                      label === "次数缺口"
+                        ? "count"
+                        : label === "轮次缺项"
+                          ? "round"
+                          : label === "待核实记录"
+                            ? "unknown"
+                            : "missing",
+                    );
+                }}
+              >
                 <Text style={{ fontSize: 23, color: "#FFF" }}>{value}</Text>
                 <Text style={{ fontSize: 12, color: "#DCEBFA" }}>{label}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
           {!count.complete && (
