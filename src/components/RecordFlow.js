@@ -19,6 +19,7 @@ import Dropdown from "./Dropdown";
 import SchoolGate from "./SchoolGate";
 import PeoplePicker, { PeopleSummary } from "./PeoplePicker";
 import { DateField, ExcludedDates, WorkHours } from "./DateControls";
+import ContentComposer from "./ContentComposer";
 import PlanPreview from "./PlanPreview";
 import { useSchool } from "../state/SchoolContext";
 import { get, post, currentPlan, cacheRead, cacheWrite } from "../utils/api";
@@ -47,6 +48,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     [ids, I] = useState([]),
     [people, O] = useState(false),
     [content, C] = useState(""),
+    [contentMode, CM] = useState("manual"),
+    [durationMode, DM] = useState("fixed"),
+    [durationMin, DMIN] = useState("10"),
+    [durationMax, DMAX] = useState("20"),
     [duration, D] = useState("10"),
     [method, M] = useState("面对面"),
     [scene, SC] = useState("其他"),
@@ -219,6 +224,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     if (r.weeks) W(r.weeks);
     if (r.studentIds) I(r.studentIds);
     C(r.content || "");
+    CM(r.contentMode || "manual");
+    DM(r.durationMode || "fixed");
+    DMIN(String(r.durationMin || 10));
+    DMAX(String(r.durationMax || 20));
     D(String(r.durationMinutes || 10));
     M(r.method || "面对面");
     SC(r.scene || "其他");
@@ -259,6 +268,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         );
         if (preference) {
           D(String(preference.durationMinutes || 10));
+          CM(preference.contentMode || "manual");
+          DM(preference.durationMode || "fixed");
+          DMIN(String(preference.durationMin || 10));
+          DMAX(String(preference.durationMax || 20));
           M(preference.method || "面对面");
           SC(preference.scene || "其他");
           PB(preference.pbType || "共同上课");
@@ -418,6 +431,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     preferenceKey: `preferences.${worklog ? "worklog" : "academic"}.${entry}`,
     preferences: {
       durationMinutes: Number(duration),
+      contentMode,
+      durationMode,
+      durationMin: Number(durationMin),
+      durationMax: Number(durationMax),
       method,
       scene,
       pbType,
@@ -430,6 +447,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       studentIds: ids,
       content,
       durationMinutes: Number(duration),
+      contentMode,
+      durationMode,
+      durationMin: Number(durationMin),
+      durationMax: Number(durationMax),
       method,
       scene,
       pbType,
@@ -461,6 +482,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         studentIds: ids,
         content,
         durationMinutes: Number(duration),
+        contentMode,
+        durationMode,
+        durationMin: Number(durationMin),
+        durationMax: Number(durationMax),
         method,
         scene,
         pbType,
@@ -768,13 +793,13 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                 />
               </Card>
               <Card>
-                <Field
-                  label="谈话 / 工作内容（选填）"
-                  helper="可以留空，也可在预览中逐人修改，最多 250 字。"
-                  value={content}
-                  onChangeText={C}
-                  multiline
-                  maxLength={250}
+                <ContentComposer
+                  mode={contentMode}
+                  onMode={CM}
+                  content={content}
+                  onContent={C}
+                  entry={worklog ? "talk" : entry}
+                  navigation={navigation}
                 />
                 <SectionHeader
                   title="更多规则"
@@ -782,17 +807,50 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                   onPress={() => A(!advanced)}
                 />
                 {!advanced && (
-                  <Body muted>09:00–12:00、14:00–17:00 · {duration} 分钟</Body>
+                  <Body muted>
+                    09:00–12:00、14:00–17:00 ·{" "}
+                    {durationMode === "random"
+                      ? `${durationMin}–${durationMax}`
+                      : duration}{" "}
+                    分钟
+                  </Body>
                 )}
                 {advanced && (
                   <>
                     <WorkHours shifts={shifts} onChange={H} />
-                    <Field
-                      label="时长（分钟）"
-                      value={duration}
-                      onChangeText={D}
-                      keyboardType="number-pad"
+                    <Dropdown
+                      label="时长填写方式"
+                      returnValue
+                      value={durationMode}
+                      options={[
+                        { value: "fixed", label: "固定时长" },
+                        { value: "random", label: "随机时长" },
+                      ]}
+                      onChange={DM}
                     />
+                    {durationMode === "random" ? (
+                      <>
+                        <Field
+                          label="随机时长下限（分钟）"
+                          value={durationMin}
+                          onChangeText={DMIN}
+                          keyboardType="number-pad"
+                        />
+                        <Field
+                          label="随机时长上限（分钟）"
+                          value={durationMax}
+                          onChangeText={DMAX}
+                          keyboardType="number-pad"
+                        />
+                      </>
+                    ) : (
+                      <Field
+                        label="时长（分钟）"
+                        value={duration}
+                        onChangeText={D}
+                        keyboardType="number-pad"
+                      />
+                    )}
                     {(worklog || entry !== "companion") && (
                       <>
                         {["面对面", "电话", "网络", "随机"].map((v) => (
@@ -813,9 +871,12 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                             label="学校谈话场景"
                             value={scene}
                             onChange={SC}
-                            options={schoolOptions.scenes}
+                            options={[
+                              ...schoolOptions.scenes,
+                              { value: "随机", label: "随机" },
+                            ]}
                             disabled={!schoolOptions.scenes.length}
-                            helper="轮次缺走访时，会在预览中补充走访场景谈话，请核对实际工作。"
+                            helper="随机时逐条选择学校场景；缺走访的补充项只从走访场景中选择。请核对实际工作。"
                           />
                         )}
                       </>
@@ -825,7 +886,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                         label="学校陪伴类型"
                         value={pbType}
                         onChange={PB}
-                        options={schoolOptions.companionTypes}
+                        options={[
+                          ...schoolOptions.companionTypes,
+                          { value: "随机", label: "随机" },
+                        ]}
                         disabled={!schoolOptions.companionTypes.length}
                       />
                     )}
@@ -838,6 +902,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             <>
               <PlanPreview
                 plan={plan}
+                formOptions={schoolOptions}
                 onEdit={edit}
                 busy={busy}
                 error={error}

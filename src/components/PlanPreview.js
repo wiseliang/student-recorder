@@ -17,20 +17,34 @@ import {
 import Dropdown from "./Dropdown";
 import { DateField, TimeField } from "./DateControls";
 import { operationLabels } from "../utils/presentation";
-export default function PlanPreview({ plan, onEdit, busy, error }) {
+export default function PlanPreview({
+  plan,
+  onEdit,
+  busy,
+  error,
+  formOptions,
+}) {
   const [purpose, FP] = useState("all");
   const [all, A] = useState(false),
     [edit, E] = useState(null),
     [date, D] = useState(""),
     [time, T] = useState(""),
     [content, C] = useState(""),
-    [method, M] = useState("面对面");
+    [method, M] = useState("面对面"),
+    [duration, DU] = useState("10"),
+    [scene, SC] = useState("其他"),
+    [pbType, PB] = useState("共同上课");
+  const options = plan.request?.formOptions ||
+    formOptions || { scenes: [], companionTypes: [] };
   const open = (op, index) => {
       E({ op, index });
       D((op.payload.recordedAt || "").slice(0, 10));
       T((op.payload.recordedAt || "").slice(11, 16));
       C(op.payload.content || "");
       M(op.payload.method || "面对面");
+      DU(String(op.payload.durationMinutes || 10));
+      SC(op.payload.scene || "其他");
+      PB(op.payload.pbType || "共同上课");
     },
     close = () => (edit ? E(null) : A(false));
   const row = ({ item: { op, index } }) => (
@@ -63,6 +77,13 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
       {op.type !== "companion" && op.payload.method && (
         <Body muted>谈话方式：{op.payload.method}</Body>
       )}
+      {op.payload.durationMinutes && op.type !== "companion" && (
+        <Body muted>时长：{op.payload.durationMinutes} 分钟</Body>
+      )}
+      {op.payload.content && <Body>内容：{op.payload.content}</Body>}
+      {op.payload.contentTemplateTitle && (
+        <Body muted>模板：{op.payload.contentTemplateTitle}</Body>
+      )}
       {op.reason && <Body muted>{op.reason}</Body>}
       {op.payload?.ruleVersion === 2 && op.status === "planned" && (
         <Body muted>
@@ -91,6 +112,12 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
         operationIndex: edit.index,
         recordedAt: date + " " + time + ":00",
         content,
+        durationMinutes: Number(duration),
+        ...(plan.request?.scope === "academic"
+          ? edit.op.type === "companion"
+            ? { pbType }
+            : { scene }
+          : {}),
         ...(edit.op.type === "companion" ? {} : { method }),
       });
       if (ok) E(null);
@@ -229,6 +256,30 @@ export default function PlanPreview({ plan, onEdit, busy, error }) {
                     label: v,
                   }))}
                   onChange={M}
+                />
+              )}
+              {edit.op.type !== "companion" && (
+                <Field
+                  label="实际时长（分钟）"
+                  value={duration}
+                  onChangeText={DU}
+                  keyboardType="number-pad"
+                />
+              )}
+              {plan.request?.scope === "academic" && (
+                <Dropdown
+                  label={
+                    edit.op.type === "companion"
+                      ? "实际陪伴类型"
+                      : "实际谈话场景"
+                  }
+                  value={edit.op.type === "companion" ? pbType : scene}
+                  onChange={edit.op.type === "companion" ? PB : SC}
+                  options={
+                    (edit.op.type === "companion"
+                      ? options.companionTypes
+                      : options.scenes) || []
+                  }
                 />
               )}
               <Field

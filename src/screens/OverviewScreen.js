@@ -132,7 +132,7 @@ export default function OverviewScreen({ navigation, route }) {
       };
     }, [kind, target, query, filter, school.connectionId]),
   );
-  const refresh = async (full = false, selectedKind = kind) => {
+  const refresh = async (full = true, selectedKind = kind) => {
     if (lock.current) return;
     lock.current = true;
     B(true);
@@ -174,7 +174,7 @@ export default function OverviewScreen({ navigation, route }) {
     const poll = async () => {
       try {
         const r = await get("/api/overview/" + scan.id, {
-          targetCount: Number(target),
+          targetCount: Number(viewRef.current.target),
           pageSize: 50,
         });
         if (stopped) return;
@@ -182,16 +182,25 @@ export default function OverviewScreen({ navigation, route }) {
           await cacheWrite("overview." + r.kind, r);
           if (r.kind === kindRef.current) {
             const v = viewRef.current;
-            const shown =
-              v.query || v.filter !== "all"
-                ? await get("/api/overview/" + r.id, {
-                    targetCount: Number(v.target),
-                    query: v.query,
-                    filter: v.filter,
-                    pageSize: 50,
-                  })
-                : r;
+            const fingerprint = JSON.stringify(v);
+            const ticket = ++seq.current;
+            const shown = await get("/api/overview/" + r.id, {
+              targetCount: Number(v.target),
+              query: v.query,
+              filter: v.filter,
+              pageSize: 50,
+            });
+            if (stopped) return;
+            if (fingerprint !== JSON.stringify(viewRef.current)) {
+              timer = setTimeout(poll, 0);
+              return;
+            }
+            if (ticket !== seq.current) {
+              timer = setTimeout(poll, 0);
+              return;
+            }
             D(shown);
+            B(false);
             C(false);
             N("学校记录已更新，次数与轮次分别核对。");
           }
@@ -470,7 +479,7 @@ export default function OverviewScreen({ navigation, route }) {
           {academic && (
             <Body style={{ color: "#DCEBFA" }}>
               学校应计 {count.requiredCount} 次，学校已计 {count.completedCount}{" "}
-              次；轮次缺项按各周谈话、走访、陪伴分别核对。
+              次；轮次缺项按各周谈话、走访、陪伴分别核对。学校达标按学校原始字段判定，记录时间异常单独提示。
             </Body>
           )}
         </Card>
@@ -483,6 +492,12 @@ export default function OverviewScreen({ navigation, route }) {
               ? "本周未核实"
               : `${count.currentWeek.completed} / ${count.currentWeek.expected} 人已满足学校要求；本周尚未结束。`}
           </Body>
+          {!!count.currentWeek.warningStudents && (
+            <Body style={{ color: colors.warning }}>
+              其中 {count.currentWeek.warningStudents}{" "}
+              人有记录时间或时长待核实；不改变学校达标状态，异常项不会自动补写。
+            </Body>
+          )}
           <Button
             secondary
             title="查看本周待完成学生"
@@ -760,14 +775,18 @@ export default function OverviewScreen({ navigation, route }) {
                       }}
                     >
                       {r.complete
-                        ? "次数与轮次均已完成"
-                        : r.anomalies.length
-                          ? r.anomalies.join("；")
-                          : r.roundMissing.length
-                            ? "轮次缺少：" +
-                              r.roundMissing.map((k) => labels[k]).join("、")
-                            : "尚差 " + r.remaining + " 次"}
+                        ? "学校次数与轮次均已完成"
+                        : r.roundMissing.length
+                          ? "轮次缺少：" +
+                            r.roundMissing.map((k) => labels[k]).join("、")
+                          : "尚差 " + r.remaining + " 次"}
                     </Body>
+                    {!!r.anomalies?.length && (
+                      <Body style={{ color: colors.warning }}>
+                        记录待核实：{r.anomalies.join("；")}
+                        。学校达标与记录核验分别展示。
+                      </Body>
+                    )}
                     {!r.editable && (
                       <Body muted>学校日志不可编辑，需到学校核对。</Body>
                     )}

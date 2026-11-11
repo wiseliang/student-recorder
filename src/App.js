@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SchoolProvider } from "./state/SchoolContext";
 import AcademicAccessScreen from "./screens/AcademicAccessScreen";
+import ContentTemplatesScreen from "./screens/ContentTemplatesScreen";
 import OverviewScreen from "./screens/OverviewScreen";
 import HomeScreen from "./screens/HomeScreen";
 import RecordScreen from "./screens/RecordScreen";
@@ -58,6 +59,7 @@ function Screens({ initial, component }) {
       />
       {[
         ["Overview", OverviewScreen, "学期总览"],
+        ["ContentTemplates", ContentTemplatesScreen, "内容模板库"],
         ["AcademicAccess", AcademicAccessScreen, "教务连接验证"],
         ["Record", RecordScreen, "学情日志"],
         ["WorklogTalk", WorklogTalkScreen, "工作日志"],

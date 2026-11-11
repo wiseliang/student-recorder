@@ -9,6 +9,8 @@ export default function Dropdown({
   onChange,
   helper,
   disabled = false,
+  placeholder,
+  returnValue = false,
 }) {
   const [open, S] = useState(false),
     chosen = options.find((o) => o.label === value || o.value === value);
@@ -35,6 +37,7 @@ export default function Dropdown({
       >
         <Text style={styles.body}>
           {chosen?.label ||
+            placeholder ||
             (options.length ? "请选择学校选项" : "正在读取学校选项…")}
         </Text>
         <Icon name="chevron-down" size={18} />
@@ -72,7 +75,7 @@ export default function Dropdown({
                 accessibilityState={{ checked: chosen?.value === item.value }}
                 accessibilityLabel={item.label}
                 onPress={() => {
-                  onChange(item.label);
+                  onChange(returnValue ? item.value : item.label);
                   S(false);
                 }}
                 style={{

@@ -111,6 +111,10 @@ export default function TaskDetailsScreen({ route }) {
             {d.type !== "companion" && d.method && (
               <Body muted>谈话方式：{d.method}</Body>
             )}
+            {d.type !== "companion" && d.durationMinutes && (
+              <Body muted>时长：{d.durationMinutes} 分钟</Body>
+            )}
+            {d.content && <Body>内容：{d.content}</Body>}
             {d.goal && (
               <Body muted>
                 {

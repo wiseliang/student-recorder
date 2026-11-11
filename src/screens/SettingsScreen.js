@@ -96,6 +96,12 @@ export default function SettingsScreen({ navigation }) {
         <SectionHeader title="学校数据" />
         <Card style={{ paddingVertical: 6 }}>
           <RowLink
+            title="内容模板库"
+            icon="document-text-outline"
+            detail="学习、室友相处、职业规划等主题，可增删改"
+            onPress={() => navigation.navigate("ContentTemplates")}
+          />
+          <RowLink
             title="学期与周次"
             icon="calendar-outline"
             detail={
