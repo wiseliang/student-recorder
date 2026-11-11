@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [feat/random-templates-overview-fix]
+    branches: [master, feat/random-templates-overview-fix]
   workflow_dispatch:
 jobs:
   apk:
