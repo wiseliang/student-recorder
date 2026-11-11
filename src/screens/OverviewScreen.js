@@ -776,12 +776,10 @@ export default function OverviewScreen({ navigation, route }) {
                     >
                       {r.complete
                         ? "学校次数与轮次均已完成"
-                        : r.anomalies.length
-                          ? r.anomalies.join("；")
-                          : r.roundMissing.length
-                            ? "轮次缺少：" +
-                              r.roundMissing.map((k) => labels[k]).join("、")
-                            : "尚差 " + r.remaining + " 次"}
+                        : r.roundMissing.length
+                          ? "轮次缺少：" +
+                            r.roundMissing.map((k) => labels[k]).join("、")
+                          : "尚差 " + r.remaining + " 次"}
                     </Body>
                     {!!r.anomalies?.length && (
                       <Body style={{ color: colors.warning }}>
