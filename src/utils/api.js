@@ -262,10 +262,26 @@ export async function cacheWrite(name, value) {
     JSON.stringify(value),
   );
 }
-export async function currentPlan(value) {
-  const { openid } = await identity();
-  const k = key("plan." + openid);
-  if (value === undefined) return AsyncStorage.getItem(k);
-  if (value === null) return AsyncStorage.removeItem(k);
-  return AsyncStorage.setItem(k, value);
+export async function currentPlan(value, scope = "recent") {
+  const { openid } = await identity(),
+    k = key("plans." + openid);
+  let plans;
+  try {
+    plans = JSON.parse(await AsyncStorage.getItem(k)) || {};
+  } catch {
+    plans = {};
+  }
+  const recent = Object.entries(plans).sort(
+    (a, b) => b[1].updatedAt - a[1].updatedAt,
+  )[0];
+  if (value === undefined)
+    return scope === "recent"
+      ? recent?.[1]?.id || (await AsyncStorage.getItem(key("plan." + openid)))
+      : plans[scope]?.id || null;
+  if (value === null) {
+    if (scope === "recent" && recent) delete plans[recent[0]];
+    else delete plans[scope];
+    await AsyncStorage.removeItem(key("plan." + openid));
+  } else plans[scope] = { id: value, updatedAt: Date.now() };
+  await AsyncStorage.setItem(k, JSON.stringify(plans));
 }

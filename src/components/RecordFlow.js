@@ -79,7 +79,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     pendingAction = useRef(null),
     retryLoaded = useRef(false),
     draftStep = useRef(0),
-    draftKey = `draft.${worklog ? "worklog" : "academic"}.${entry}`,
+    draftKey = `draft.${school.accountKey || school.connectionId || "none"}.${worklog ? "worklog" : "academic"}.${entry}`,
     today = new Date().toLocaleDateString("sv-SE", {
       timeZone: "Asia/Shanghai",
     });
@@ -103,6 +103,12 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       live = false;
     };
   }, []);
+  const flowPlan = (value) =>
+    currentPlan(
+      value,
+      `${school.accountKey || school.connectionId}.${worklog ? "worklog" : "academic"}.${entry}`,
+    );
+  const scanKey = `${worklog ? "worklogScanId" : "academicScanId"}.${school.connectionId}`;
   const beginRead = async (selectedWeeks) => {
     const range = refreshWeeks(
       selectedWeeks || weeksRef.current,
@@ -114,10 +120,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       api + (worklog ? "/scan" : "/rosters"),
       worklog ? {} : { weeks: range, entry },
     );
-    await cacheWrite(
-      worklog ? "worklogScanId" : "academicScanId",
-      r.snapshotId,
-    );
+    await cacheWrite(scanKey, r.snapshotId);
     if (alive.current) Z({ id: r.snapshotId, state: "scanning", students: [] });
   };
   const recoverSnapshot = async (context = {}) => {
@@ -134,8 +137,8 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         ? [...selectedRef.current]
         : null;
       NT("名单次数已过期，正在自动重新读取…");
-      await currentPlan(null);
-      await cacheWrite(worklog ? "worklogScanId" : "academicScanId", null);
+      await flowPlan(null);
+      await cacheWrite(scanKey, null);
       if (!school.hasActiveSession) {
         pendingReload.current = true;
         return;
@@ -242,8 +245,24 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
   useEffect(() => {
     if (school.loading) return;
     alive.current = true;
+    P(null);
+    Z(null);
+    I([]);
+    C("");
+    selectionInitialized.current = false;
+    restoreIds.current = null;
     (async () => {
       try {
+        const preference = await cacheRead(
+          `preferences.${worklog ? "worklog" : "academic"}.${entry}`,
+        );
+        if (preference) {
+          D(String(preference.durationMinutes || 10));
+          M(preference.method || "面对面");
+          SC(preference.scene || "其他");
+          PB(preference.pbType || "共同上课");
+          if (preference.shifts) H(preference.shifts);
+        }
         const draft = await cacheRead(draftKey);
         if (
           draft &&
@@ -262,7 +281,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           );
           if (alive.current) {
             applyPlan(p);
-            await currentPlan(p.id);
+            await flowPlan(p.id);
             retryLoaded.current = true;
           }
           return;
@@ -281,7 +300,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           await beginRead(prefill.weeks);
           return;
         }
-        const id = await currentPlan();
+        const id = await flowPlan();
         if (id) {
           const p = await get("/api/task/plans/" + id);
           if (
@@ -293,9 +312,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             applyPlan(p);
           }
         }
-        const scan = await cacheRead(
-          worklog ? "worklogScanId" : "academicScanId",
-        );
+        const scan = await cacheRead(scanKey);
         if (scan) {
           const s = await get(api + (worklog ? "/scans/" : "/rosters/") + scan);
           if (alive.current && (worklog || s.entry === entry)) {
@@ -318,7 +335,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     return () => {
       alive.current = false;
     };
-  }, [school.loading]);
+  }, [school.loading, school.connectionId]);
   useEffect(() => {
     if (!foreground) return;
     const scanning = snapshot?.state === "scanning",
@@ -383,7 +400,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         );
         if (alive.current) {
           applyPlan(p);
-          await currentPlan(p.id);
+          await flowPlan(p.id);
           retryLoaded.current = true;
         }
       });
@@ -397,6 +414,10 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     if (hydrating || !calendar?.startDate || route.params?.retryTaskUuid)
       return;
     const timer = setTimeout(() => {
+      void cacheWrite(
+        `preferences.${worklog ? "worklog" : "academic"}.${entry}`,
+        { durationMinutes: Number(duration), method, scene, pbType, shifts },
+      ).catch(() => {});
       void cacheWrite(draftKey, {
         calendarStartDate: calendar.startDate,
         step: Math.min(step, 1),
@@ -471,7 +492,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       const p = r.id ? r : { id: r.planId, state: "scanning" };
       P(p);
       S(2);
-      await currentPlan(p.id);
+      await flowPlan(p.id);
     }, true);
   const edit = (change) =>
     run(async () =>
@@ -490,7 +511,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
         revision: plan.revision,
         confirmedActual: true,
       });
-      await currentPlan(null);
+      await flowPlan(null);
       await cacheWrite(draftKey, null);
       navigation.replace("Progress", { taskUuid: r.taskUuid });
     });
@@ -542,7 +563,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             onPress={() =>
               run(async () => {
                 if (step === 2) {
-                  await currentPlan(null);
+                  await flowPlan(null);
                   P(null);
                 }
                 S(step === 2 && !rosterReady ? 0 : step - 1);

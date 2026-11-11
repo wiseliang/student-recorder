@@ -128,6 +128,8 @@ export default function PeoplePicker({
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 8,
             }}
           >
             <Body muted>
@@ -149,7 +151,25 @@ export default function PeoplePicker({
                 }}
               >
                 <Text style={{ fontSize: 14, color: colors.primary }}>
-                  全选
+                  选中结果
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="取消当前搜索结果"
+                onPress={() =>
+                  I((old) =>
+                    old.filter((id) => !list.some((s) => s.studentId === id)),
+                  )
+                }
+                style={{
+                  minHeight: 44,
+                  justifyContent: "center",
+                  paddingHorizontal: 6,
+                }}
+              >
+                <Text style={{ fontSize: 14, color: colors.muted }}>
+                  取消结果
                 </Text>
               </Pressable>
               <Pressable
@@ -162,7 +182,9 @@ export default function PeoplePicker({
                   paddingHorizontal: 6,
                 }}
               >
-                <Text style={{ fontSize: 14, color: colors.muted }}>清空</Text>
+                <Text style={{ fontSize: 14, color: colors.muted }}>
+                  清空全部
+                </Text>
               </Pressable>
             </View>
           </View>
