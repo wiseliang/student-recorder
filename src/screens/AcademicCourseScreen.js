@@ -11,7 +11,7 @@ export default function AcademicCourseScreen({navigation,route}){
  const key=route.params.cohortKey;
  const [options,V]=useState(null),[catalog,K]=useState([]),[term,T]=useState(""),[code,C]=useState(route.params?.courseCode||""),[managed,M]=useState(true),[filter,F]=useState("all"),[data,D]=useState(null),[offset,O]=useState(0),[error,E]=useState(null),[busy,B]=useState(false);
  const alive=useRef(false),lock=useRef(false);
- useFocusEffect(useCallback(()=>{alive.current=true;Promise.all([get(API+"/options"),get(API+"/catalog?cohortKey="+key)]).then(([o,c])=>{if(alive.current){V(o);K(c.courses)}}).catch(E);return()=>{alive.current=false}},[key]));
+ useFocusEffect(useCallback(()=>{alive.current=true;Promise.all([get(API+"/options"),get(API+"/catalog?cohortKey="+key)]).then(([o,c])=>{if(alive.current){V(o);K(c.courses);if(route.params?.termLabel){const selected=o.terms.find(t=>t.label===route.params.termLabel);if(selected)T(selected.value)}}}).catch(E);return()=>{alive.current=false}},[key]));
  const query=async()=>{if(lock.current)return;lock.current=true;B(true);E(null);D(null);O(0);try{const r=await post(API+"/course",{cohortKey:key,term,courseCode:code.trim(),managedOnly:managed,filter});if(alive.current)D(r)}catch(e){if(alive.current)E(e)}finally{lock.current=false;B(false)}};
  const termLabel=options?.terms.find(x=>x.value===term)?.label;
  const courses=catalog.filter(c=>c.semester===termLabel);
