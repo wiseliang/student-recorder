@@ -8,6 +8,16 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SchoolProvider } from "./state/SchoolContext";
+import SchoolSignIn from "./components/SchoolSignIn";
+import AcademicPhotoExportsScreen from './screens/AcademicPhotoExportsScreen';
+import AcademicPhotosScreen from './screens/AcademicPhotosScreen';
+import AcademicPatrolScreen from './screens/AcademicPatrolScreen';
+import AcademicStudentsScreen from './screens/AcademicStudentsScreen';
+import AcademicManageScreen from './screens/AcademicManageScreen';
+import AcademicGradesScreen from "./screens/AcademicGradesScreen";
+import AcademicScopeScreen from "./screens/AcademicScopeScreen";
+import AcademicCourseScreen from "./screens/AcademicCourseScreen";
+import AcademicStudentScreen from "./screens/AcademicStudentScreen";
 import AcademicAccessScreen from "./screens/AcademicAccessScreen";
 import ContentTemplatesScreen from "./screens/ContentTemplatesScreen";
 import OverviewScreen from "./screens/OverviewScreen";
@@ -25,6 +35,7 @@ import TaskDetailsScreen from "./screens/TaskDetailsScreen";
 import {
   initializeIdentity,
   recoverIdentity,
+  getRecoveryKey,
   onIdentityLost,
 } from "./utils/api";
 import {
@@ -60,7 +71,16 @@ function Screens({ initial, component }) {
       {[
         ["Overview", OverviewScreen, "学期总览"],
         ["ContentTemplates", ContentTemplatesScreen, "内容模板库"],
-        ["AcademicAccess", AcademicAccessScreen, "教务连接验证"],
+        ["AcademicAccess", AcademicAccessScreen, "教务连接"],
+        ["AcademicGrades", AcademicGradesScreen, "学业管理"],
+        ["AcademicStudents", AcademicStudentsScreen, "学生与风险名单"],
+        ["AcademicPatrol", AcademicPatrolScreen, "补考巡考"],
+        ["AcademicPhotos", AcademicPhotosScreen, "学生照片"],
+        ["AcademicPhotoExports", AcademicPhotoExportsScreen, "照片导出到服务器"],
+        ["AcademicManage", AcademicManageScreen, "名单与连接"],
+        ["AcademicScope", AcademicScopeScreen, "专业与班级"],
+        ["AcademicCourse", AcademicCourseScreen, "专业单科成绩"],
+        ["AcademicStudent", AcademicStudentScreen, "学生成绩档案"],
         ["Record", RecordScreen, "学情日志"],
         ["WorklogTalk", WorklogTalkScreen, "工作日志"],
         ["Progress", ProgressScreen, "录入进度"],
@@ -74,7 +94,7 @@ function Screens({ initial, component }) {
           key={name}
           name={name}
           component={component}
-          options={{ title }}
+          options={{ title, presentation: name === "AcademicScope" ? "modal" : "card" }}
         />
       ))}
     </Stack.Navigator>
@@ -111,7 +131,7 @@ function Root() {
   }, []);
   if (!ready)
     return (
-      <Page contentStyle={{ paddingTop: 76 }}>
+      <Page contentStyle={{ paddingTop: 48 }}>
         <View style={{ gap: 12 }}>
           <Icon name="leaf-outline" size={34} />
           <Title>学工录入助手</Title>
@@ -119,15 +139,22 @@ function Root() {
         </View>
         <Card>
           <Body>{busy ? "正在连接你的工作记录…" : "连接尚未完成"}</Body>
-          <ErrorBox error={error} />
+          <ErrorBox error={error?.code === "SCHOOL_SIGNIN_REQUIRED" ? null : error} />
           {!busy && <Button title="重新连接" onPress={init} />}
         </Card>
         {error && (
           <>
-            <RowLink title="恢复原设备记录" last onPress={() => V(!recovery)} />
+            <SchoolSignIn onConnected={() => { E(null); R(true); }} />
+            <Button secondary title="使用本机备份恢复" disabled={busy} onPress={async () => {
+              B(true); E(null);
+              try {const saved=await getRecoveryKey();if(!saved)throw new Error("本机没有可用备份，请通过上方学校账号验证找回");await recoverIdentity(saved);R(true);}
+              catch(e){E(e)}finally{B(false)}
+            }} />
+            <RowLink title="其他恢复方式（可选）" last onPress={() => V(!recovery)} />
             {recovery && (
               <Card>
-                <Field label="恢复码" value={code} onChangeText={C} />
+                <Body muted>恢复码是可选备用方式；没有恢复码可通过上方学校账号验证。</Body>
+                <Field label="备用恢复码" value={code} onChangeText={C} />
                 <Button
                   title="恢复账户"
                   disabled={!code.trim()}

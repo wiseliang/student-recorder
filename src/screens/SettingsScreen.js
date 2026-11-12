@@ -15,7 +15,7 @@ import {
   colors,
 } from "../components/ui";
 import { useSchool, openSchool } from "../state/SchoolContext";
-import { get, post, del } from "../utils/api";
+import { get, post, del, switchSchoolAccount } from "../utils/api";
 import { VERSION } from "../utils/presentation";
 export default function SettingsScreen({ navigation }) {
   const { school, refresh } = useSchool(),
@@ -81,7 +81,7 @@ export default function SettingsScreen({ navigation }) {
             : "连接后可录入学情日志、工作日志，并同步校历。"}
         </Body>
         <Button
-          title={school.hasActiveSession ? "切换学校账号" : "连接学校账号"}
+          title={school.hasActiveSession ? "重新验证学校连接" : "连接学校账号"}
           secondary={school.hasActiveSession}
           icon="log-in-outline"
           onPress={() =>
@@ -92,6 +92,7 @@ export default function SettingsScreen({ navigation }) {
           <Body muted>已保存账号 {credential.maskedId}</Body>
         )}
       </Card>
+      <Button secondary title="使用另一学校账号登录" onPress={switchSchoolAccount} />
       <View style={{ gap: 12 }}>
         <SectionHeader title="学校数据" />
         <Card style={{ paddingVertical: 6 }}>
@@ -134,15 +135,15 @@ export default function SettingsScreen({ navigation }) {
         {advanced && (
           <Card style={{ paddingVertical: 6 }}>
             <RowLink
-              title="教务连接验证"
+              title="教务连接"
               icon="school-outline"
-              detail="独立 VPN 会话，仅验证连接"
+              detail="成绩查询、HIT APP验证与连接状态"
               onPress={() => navigation.navigate("AcademicAccess")}
             />
             <RowLink
-              title="迁移与恢复"
+              title="备用恢复方式"
               icon="key-outline"
-              detail="换机或重装时使用"
+              detail="学校账号可找回；恢复码仅作可选备份"
               onPress={() => navigation.navigate("Recovery")}
             />
             <RowLink

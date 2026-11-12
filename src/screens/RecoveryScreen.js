@@ -30,8 +30,8 @@ export default function RecoveryScreen() {
   };
   return (
     <Page>
-      <Title>迁移与恢复</Title>
-      <Body muted>仅在换机或重装时使用，日常录入无需操作。</Body>
+      <Title>备用恢复方式</Title>
+      <Body muted>换机、重装可使用学校账号验证找回记录。恢复码仅是可选备份，无需强制保存。</Body>
       <ErrorBox error={error} />
       <Card>
         <Icon name="key-outline" size={28} />

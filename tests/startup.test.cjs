@@ -45,28 +45,19 @@ const response = (status, data) => ({
   ok: status < 400,
   text: async () => JSON.stringify(data),
 });
-test("new installation stores secrets in native secure storage and preserves identity", async () => {
-  const storage = new Map(),
-    secure = new Map(),
-    calls = [];
-  const api = moduleAt("utils/api.js", {
-    storage,
-    secure,
-    fetch: async (url, o) => {
-      calls.push([url, o]);
-      return response(200, {
-        openid: "android_original",
-        token: "short-lived",
-        refreshToken: "opaque-refresh",
-        recoveryKey: "REC-backup",
-      });
-    },
-  });
-  await api.initializeIdentity();
-  assert.equal((await api.identity()).openid, "android_original");
-  assert.equal([...storage.values()].includes("opaque-refresh"), false);
-  assert.ok([...secure.values()].includes("REC-backup"));
-  assert.equal(calls.length, 1);
+test("new installation uses verified school login instead of creating an anonymous account", async () => {
+ const storage=new Map(),secure=new Map(),calls=[];
+ const api=moduleAt("utils/api.js",{storage,secure,fetch:async(url,o)=>{
+  calls.push([url,o]);
+  return response(200,{connected:true,identity:{openid:"android_original",token:"short-lived",refreshToken:"opaque-refresh",recoveryKey:"REC-backup"}});
+ }});
+ await assert.rejects(api.initializeIdentity(),e=>e.code==="SCHOOL_SIGNIN_REQUIRED");
+ assert.equal(calls.length,0);
+ await api.schoolSignIn("start",{studentId:"teacher",password:"fixture"});
+ assert.equal((await api.identity()).openid,"android_original");
+ assert.equal([...storage.values()].includes("opaque-refresh"),false);
+ assert.equal(await api.getRecoveryKey(),"REC-backup");
+ assert.equal(calls.length,1);
 });
 test("concurrent expired requests share one refresh and retry with new token", async () => {
   const storage = new Map([
@@ -429,4 +420,50 @@ test("account and dictionary changes force a fresh roster rather than replaying 
   const recovery = moduleAt("utils/flowRecovery.js");
   for (const code of ["SCHOOL_ACCOUNT_CHANGED", "SCHOOL_OPTIONS_CHANGED"])
     assert.equal(recovery.needsRosterReload({ code }), true);
+});
+
+test("lost refresh response reuses its persisted operation after an app restart", async()=>{
+ const storage=new Map([["recorder.https___example.invalid.openid","original"]]);
+ const secure=new Map([["recorder.https___example.invalid.token","old"],["recorder.https___example.invalid.refresh","opaque-refresh-original"]]);
+ let operation;
+ const first=moduleAt("utils/api.js",{storage,secure,fetch:async(url,o)=>{operation=JSON.parse(o.body);throw Error("response lost")}});
+ await assert.rejects(first.refreshIdentity(),e=>e.code==="NETWORK_ERROR");
+ const restarted=moduleAt("utils/api.js",{storage,secure,fetch:async(url,o)=>{
+  const retried=JSON.parse(o.body);assert.equal(retried.operationId,operation.operationId);assert.equal(retried.refreshToken,operation.refreshToken);
+  return response(200,{openid:"original",token:"new",refreshToken:"rotated"});
+ }});
+ await restarted.refreshIdentity();assert.equal((await restarted.identity()).token,"new");
+});
+test("failed canonical credential save keeps the same operation for safe retry",async()=>{
+ const storage=new Map([["recorder.https___example.invalid.openid","original"]]);
+ const secure=new Map([["recorder.https___example.invalid.token","old"],["recorder.https___example.invalid.refresh","opaque-refresh-original"]]);
+ const normalSet=secure.set.bind(secure);let fail=true,seen;
+ secure.set=(key,value)=>{if(key.endsWith(".session")&&fail)throw Error("secure save interrupted");return normalSet(key,value)};
+ const api=moduleAt("utils/api.js",{storage,secure,fetch:async(url,o)=>{
+  const body=JSON.parse(o.body);if(seen)assert.equal(body.operationId,seen);else seen=body.operationId;
+  return response(200,{openid:"original",token:"new",refreshToken:"rotated"});
+ }});
+ await assert.rejects(api.refreshIdentity(),/secure save interrupted/);
+ fail=false;await api.refreshIdentity();assert.equal((await api.identity()).token,"new");
+});
+test("legacy alias save failure does not corrupt the committed canonical session",async()=>{
+ const storage=new Map(),secure=new Map();const normalSet=secure.set.bind(secure);
+ secure.set=(key,value)=>{if(key.endsWith(".refresh"))throw Error("legacy alias unavailable");return normalSet(key,value)};
+ const api=moduleAt("utils/api.js",{storage,secure,fetch:async()=>response(200,{connected:true,identity:{openid:"original",token:"new",refreshToken:"canonical-refresh"}})});
+ await api.schoolSignIn("start",{studentId:"teacher",password:"fixture"});
+ assert.equal((await api.identity()).openid,"original");assert.equal((await api.identity()).token,"new");
+});
+test("a late refresh cannot overwrite a newly verified different school account",async()=>{
+ const storage=new Map([["recorder.https___example.invalid.openid","old-owner"]]);
+ const secure=new Map([["recorder.https___example.invalid.token","old"],["recorder.https___example.invalid.refresh","old-refresh"],["recorder.https___example.invalid.recovery","OLD-BACKUP"]]);
+ let release;
+ const api=moduleAt("utils/api.js",{storage,secure,fetch:async(url)=>{
+  if(url.endsWith("/refresh"))return new Promise(resolve=>{release=()=>resolve(response(200,{openid:"old-owner",token:"late-old-token",refreshToken:"late-old-refresh"}))});
+  return response(200,{connected:true,identity:{openid:"new-owner",token:"new-owner-token",refreshToken:"new-owner-refresh"}});
+ }});
+ const pending=api.refreshIdentity();
+ while(!release)await new Promise(r=>setTimeout(r,1));
+ await api.schoolSignIn("start",{studentId:"another-teacher",password:"fixture"});release();
+ await assert.rejects(pending,e=>e.code==="IDENTITY_CHANGED");
+ assert.equal((await api.identity()).openid,"new-owner");assert.equal(await api.getRecoveryKey(),null);
 });

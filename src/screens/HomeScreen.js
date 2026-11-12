@@ -200,6 +200,9 @@ export default function HomeScreen({ navigation }) {
           />
         </Card>
       )}
+      <Card>
+        <RowLink title="学业管理" icon="school-outline" detail="所带学生看板、挂科与补考核对" last onPress={() => navigation.navigate("AcademicGrades")} />
+      </Card>
       <View style={{ gap: 12 }}>
         <SectionHeader title="学情日志" />
         <Card>

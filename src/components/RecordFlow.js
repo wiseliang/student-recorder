@@ -727,12 +727,16 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                   <Body style={{ color: colors.danger }}>{snapshot.error}</Body>
                 )}
                 {rosterReady && (
+                  <>
                   <PeopleSummary
                     count={ids.length}
                     total={students.length}
                     scope={scope}
                     onPress={() => O(true)}
                   />
+                  <Button secondary title={ids.length === 1 ? "查看该学生教务成绩" : "查看学生教务成绩"}
+                    onPress={() => navigation.navigate("AcademicGrades", { studentId: ids.length === 1 ? ids[0] : "" })} />
+                  </>
                 )}
               </Card>
               {rosterReady && worklog && (
