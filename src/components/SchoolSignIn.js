@@ -16,7 +16,7 @@ export default function SchoolSignIn({onConnected}){
   }catch(e){if(alive.current)E(e)}
   finally{lock.current=false;if(alive.current)B(false)}
  };
- const challenge=["mfa","captcha"].includes(data?.step);
+ const challenge=["mfa","captcha","confirm_new"].includes(data?.step);
  return <Card>
   <Title>学校账号登录</Title>
   <Body muted>验证学校身份后找回原记录，换机、重装也无需记恢复码。</Body>
@@ -27,6 +27,10 @@ export default function SchoolSignIn({onConnected}){
    <Field label="学校密码" value={password} editable={!busy} onChangeText={P} secureTextEntry/>
    <Choice label="加密保存学校账号，便于后续连接" selected={remember} disabled={busy} onPress={()=>R(!remember)}/>
    <Button title="验证学校账号并找回记录" loading={busy} disabled={!studentId.trim()||!password} onPress={()=>run("start",{studentId:studentId.trim(),password,remember})}/>
+  </>}
+  {data?.step==="confirm_new"&&<>
+   <Button title="首次使用，创建学校账号" loading={busy} onPress={()=>run("create")}/>
+   <Body muted>已有旧记录请先使用下方本机备份或联系维护者核对，避免误建空账号。</Body>
   </>}
   {data?.step==="mfa"&&<>
    <Field label="HIT APP本次验证码" value={code} onChangeText={C} keyboardType="number-pad" editable={!busy}/>

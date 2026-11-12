@@ -176,7 +176,7 @@ export async function initializeIdentity() {
   throw new ApiError("使用学校账号登录，原有账号可直接找回",401,"SCHOOL_SIGNIN_REQUIRED");
 }
 export async function schoolSignIn(action,body={}) {
-  if(!["start","status","code","captcha","resend","cancel"].includes(action))throw new ApiError("无效的学校登录操作",400,"INVALID_ACTION");
+  if(!["start","status","code","captcha","resend","create","cancel"].includes(action))throw new ApiError("无效的学校登录操作",400,"INVALID_ACTION");
   const result=await raw("POST","/api/auth/school-signin/"+action,body,{timeout:30000});
   if(result.connected&&result.identity){
     identityEpoch++;
