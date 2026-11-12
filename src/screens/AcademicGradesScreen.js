@@ -9,12 +9,12 @@ export const dateLabel=v=>v?new Date(v).toLocaleString("zh-CN"):"尚未同步";
 export const gradeState={passed:"已通过",unresolved:"仍未通过",pending:"关系或成绩待核实",unknown:"成绩状态待核实",not_synced:"历史尚未同步",no_published_record:"未查到本次课程记录"};
 export default function AcademicGradesScreen({navigation,route}){
  const [state,S]=useState(null),[cohort,C]=useState(""),[data,D]=useState(null),[query,Q]=useState(route.params?.studentId||""),[failed,F]=useState(false),[offset,O]=useState(0),[error,E]=useState(null),[busy,B]=useState(false);
- const lock=useRef(false),alive=useRef(false),timer=useRef(null),selected=useRef("");
+ const lock=useRef(false),alive=useRef(false),timer=useRef(null),selected=useRef(""),scopePrompted=useRef(false);
  selected.current=cohort;
  const latest=useRef({});latest.current={query,offset,failed};
  const load=async(key=selected.current,q=query,off=offset,onlyFailed=failed)=>{
   const r=await get(API+"/state");if(!alive.current)return;S(r);
-  if(!r.profile.scopes.length){navigation.navigate("AcademicScope");return}
+  if(!r.profile.scopes.length){if(!scopePrompted.current){scopePrompted.current=true;navigation.navigate("AcademicScope",{onboarding:true})}return r}
   const k=r.profile.scopes.some(s=>s.key===key)?key:r.profile.scopes[0].key;C(k);
   const list=await get(API+"/students?cohortKey="+k+"&q="+encodeURIComponent(q)+"&offset="+off+"&failed="+onlyFailed);
   if(alive.current)D(list);

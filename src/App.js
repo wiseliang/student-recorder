@@ -84,7 +84,7 @@ function Screens({ initial, component }) {
           key={name}
           name={name}
           component={component}
-          options={{ title }}
+          options={{ title, presentation: name === "AcademicScope" ? "modal" : "card" }}
         />
       ))}
     </Stack.Navigator>

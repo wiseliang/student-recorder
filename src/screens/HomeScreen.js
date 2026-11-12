@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, Pressable, Modal } from "react-native";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
@@ -66,14 +66,6 @@ export default function HomeScreen({ navigation }) {
     schoolError,
     connectionPrompted,
   ]);
-  const academicPrompted = useRef(false);
-  useEffect(() => {
-    if (!focused || !school.hasActiveSession || academicPrompted.current) return;
-    academicPrompted.current = true;
-    get("/api/academic-grades/state").then(r => {
-      if (!r.profile.scopes.length) navigation.navigate("AcademicScope");
-    }).catch(() => {});
-  }, [focused, school.hasActiveSession]);
   const enter = (screen, params) =>
     school.hasActiveSession
       ? navigation.navigate(screen, params)

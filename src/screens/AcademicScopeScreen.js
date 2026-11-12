@@ -17,12 +17,12 @@ export default function AcademicScopeScreen({navigation}){
   const major=options.majors.find(x=>x.value===input.majorCode),faculty=options.faculties.find(x=>x.value===input.facultyCode);
   G([...groups,{...input,facultyName:faculty?.label,majorName:major?.label,classLabels:input.classes.map(v=>options.classes.find(x=>x.value===v)?.label||v)}]);E(null);
  };
- const save=async()=>{if(lock.current)return;lock.current=true;B(true);E(null);try{const r=await post(API+"/profile",{revision:profile.revision,scopes:groups.map(s=>({year:s.year,facultyCode:s.facultyCode,majorCode:s.majorCode,classes:s.classes}))});P(r);navigation.replace("AcademicGrades")}catch(e){E(e)}finally{lock.current=false;B(false)}};
+ const save=async()=>{if(lock.current)return;lock.current=true;B(true);E(null);try{const r=await post(API+"/profile",{revision:profile.revision,scopes:groups.map(s=>({year:s.year,facultyCode:s.facultyCode,majorCode:s.majorCode,classes:s.classes}))});P(r);navigation.goBack()}catch(e){E(e)}finally{lock.current=false;B(false)}};
  return <Page>
   <Title>我的专业与班级</Title>
-  <Body muted>首次使用先设置所带范围。支持跨年级、多专业；专业单科查询默认整个专业。</Body>
+  <Body muted>首次查询成绩时设置所带范围。支持跨年级、多专业；专业单科查询默认整个专业。</Body>
   <ErrorBox error={error}/>
-  <Button secondary title="连接教务并读取选项" onPress={()=>navigation.navigate("AcademicAccess")}/>
+  <Button secondary title="连接教务并读取选项" onPress={()=>navigation.navigate("AcademicAccess",{returnTo:"AcademicScope"})}/>
   <Button secondary title="重新读取学校选项" disabled={busy} onPress={()=>loadOptions(input)}/>
   {options&&<Card>
    <Dropdown label="年级" value={input.year} options={options.years} returnValue onChange={v=>change("year",v)}/>

@@ -11,7 +11,7 @@ import {
   Field,
   ErrorBox,
 } from "../components/ui";
-export default function AcademicAccessScreen({ navigation }) {
+export default function AcademicAccessScreen({ navigation, route }) {
   const [data, D] = useState(null),
     [code, C] = useState(""),
     [error, E] = useState(null),
@@ -91,7 +91,7 @@ export default function AcademicAccessScreen({ navigation }) {
           </>
         )}
         {data?.step === "code" && <Button secondary title="重新获取HIT APP验证码" disabled={busy || data?.busy} onPress={() => run("request-code")} />}
-        {data?.connected && <Button title="进入学业查询" onPress={() => navigation.navigate("AcademicGrades")} />}
+        {data?.connected && <Button title={route?.params?.returnTo === "AcademicScope" ? "返回专业班级设置" : "进入成绩查询"} onPress={() => route?.params?.returnTo === "AcademicScope" ? navigation.goBack() : navigation.navigate("AcademicGrades")} />}
         <Button
           title="连接学校 VPN 与新教务"
           disabled={busy || data?.busy}
