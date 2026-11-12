@@ -205,7 +205,7 @@ export async function request(method, path, data, options = {}) {
     return await raw(method, path, data, {
       ...options,
       token: current.token,
-      timeout: path.includes("/api/auth/") ? 90000 : 30000,
+      timeout: (path.includes("/api/auth/") || path.endsWith("/managed/refresh")) ? 90000 : 30000,
     });
   } catch (error) {
     if (

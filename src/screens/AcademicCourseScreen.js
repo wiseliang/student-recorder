@@ -9,7 +9,7 @@ const API="/api/academic-grades";
 const filters=[["all","全部成绩"],["failed","本次查询不及格成绩"],["unresolved","历史判定仍未通过"],["recovered","补考或重修已通过"],["pending","历史或对应关系待核实"],["missing","本次未查到课程记录"]].map(([value,label])=>({value,label}));
 export default function AcademicCourseScreen({navigation,route}){
  const key=route.params.cohortKey;
- const [options,V]=useState(null),[catalog,K]=useState([]),[term,T]=useState(""),[code,C]=useState(""),[managed,M]=useState(false),[filter,F]=useState("all"),[data,D]=useState(null),[offset,O]=useState(0),[error,E]=useState(null),[busy,B]=useState(false);
+ const [options,V]=useState(null),[catalog,K]=useState([]),[term,T]=useState(""),[code,C]=useState(""),[managed,M]=useState(true),[filter,F]=useState("all"),[data,D]=useState(null),[offset,O]=useState(0),[error,E]=useState(null),[busy,B]=useState(false);
  const alive=useRef(false),lock=useRef(false);
  useFocusEffect(useCallback(()=>{alive.current=true;Promise.all([get(API+"/options"),get(API+"/catalog?cohortKey="+key)]).then(([o,c])=>{if(alive.current){V(o);K(c.courses)}}).catch(E);return()=>{alive.current=false}},[key]));
  const query=async()=>{if(lock.current)return;lock.current=true;B(true);E(null);D(null);O(0);try{const r=await post(API+"/course",{cohortKey:key,term,courseCode:code.trim(),managedOnly:managed,filter});if(alive.current)D(r)}catch(e){if(alive.current)E(e)}finally{lock.current=false;B(false)}};
@@ -19,14 +19,14 @@ export default function AcademicCourseScreen({navigation,route}){
  const clear=()=>{D(null);O(0)};
  return <Page>
   <Title>专业单科成绩</Title>
-  <Body muted>默认查询所选年级整个专业。课程无记录不算挂科，补考重修情况依据已同步历史。</Body>
+  <Body muted>默认查询我的学生，可切换到整个专业。课程无记录不算挂科，补考重修情况依据已同步历史。</Body>
   <ErrorBox error={error}/>
   {!options&&<Button secondary title="连接教务" onPress={()=>navigation.navigate("AcademicAccess")}/>}
   <Card>
    <Dropdown label="学期" value={term} options={options?.terms||[]} returnValue disabled={busy} onChange={v=>{T(v);C("");clear()}}/>
    <Dropdown label="已同步课程" value={code} options={courseOptions} returnValue disabled={busy||!courseOptions.length} helper="课程列表来自已同步的学生成绩；也可直接输入课程代码查询。" onChange={v=>{C(v);clear()}}/>
    <Field label="课程代码" value={code} editable={!busy} autoCapitalize="none" onChangeText={v=>{C(v);clear()}}/>
-   <Choice label="只查我所带的班级" selected={managed} disabled={busy} onPress={()=>{M(!managed);clear()}}/>
+   <Choice label="只查我的学生" selected={managed} disabled={busy} onPress={()=>{M(!managed);clear()}}/>
    <Dropdown label="筛选情况" value={filter} options={filters} returnValue disabled={busy} onChange={v=>{F(v);clear()}}/>
    <Button title="查询这门课程" disabled={!term||!code.trim()} loading={busy} onPress={query}/>
   </Card>

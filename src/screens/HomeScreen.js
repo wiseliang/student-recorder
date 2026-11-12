@@ -201,7 +201,7 @@ export default function HomeScreen({ navigation }) {
         </Card>
       )}
       <Card>
-        <RowLink title="学业查询" icon="school-outline" detail="专业单科成绩 · 挂科筛选 · 补考与重修" last onPress={() => navigation.navigate("AcademicGrades")} />
+        <RowLink title="学业管理" icon="school-outline" detail="所带学生看板、挂科与补考核对" last onPress={() => navigation.navigate("AcademicGrades")} />
       </Card>
       <View style={{ gap: 12 }}>
         <SectionHeader title="学情日志" />
