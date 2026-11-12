@@ -1,7 +1,7 @@
 name: Build test APK
 on:
   push:
-    branches: [master, feat/random-templates-overview-fix, feature/v1.8-academic, feature/v1.8.1-school-login, fix/v1.8.2-academic-login, feature/v1.9-academic-dashboard, feature/v1.10-patrol-photos]
+    branches: [master, feat/random-templates-overview-fix, feature/v1.8-academic, feature/v1.8.1-school-login, fix/v1.8.2-academic-login, feature/v1.9-academic-dashboard, feature/v1.10-patrol-photos, feature/v1.11-server-photo-export]
   workflow_dispatch:
 jobs:
   apk:

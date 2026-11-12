@@ -2,7 +2,7 @@
   "expo": {
     "name": "学工录入助手",
     "slug": "student-recorder",
-    "version": "1.10.0",
+    "version": "1.11.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#1B62A5"
       },
-      "versionCode": 17
+      "versionCode": 18
     },
     "extra": {
       "eas": {

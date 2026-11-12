@@ -91,7 +91,7 @@ export default function AcademicAccessScreen({ navigation, route }) {
           </>
         )}
         {data?.step === "code" && <Button secondary title="重新获取HIT APP验证码" disabled={busy || data?.busy} onPress={() => run("request-code")} />}
-        {data?.connected && <Button title={route?.params?.returnTo === "AcademicScope" ? "返回专业班级设置" : "进入成绩查询"} onPress={() => route?.params?.returnTo === "AcademicScope" ? navigation.goBack() : navigation.navigate("AcademicGrades")} />}
+        {data?.connected && <Button title={route?.params?.returnTo === "AcademicScope" ? "返回专业班级设置" : route?.params?.returnTo === "AcademicPhotoExports" ? "返回照片导出" : "进入成绩查询"} onPress={() => ["AcademicScope","AcademicPhotoExports"].includes(route?.params?.returnTo) ? navigation.goBack() : navigation.navigate("AcademicGrades")} />}
         <Button
           title="连接学校 VPN 与新教务"
           disabled={busy || data?.busy}
