@@ -1,5 +1,8 @@
 # 学工录入助手
 
+> 本开发分支为 v1.12.0：新增学校身份接入、后台学生库同步与拍照识人。稳定发布信息见下文；新功能需配套学工1.12和识同事3.4后端，尚未宣称生产发布。
+
+
 当前稳定版 **v1.11.0**，Android 应用与[配套服务端](https://github.com/wiseliang/hit-record-server)共同提供学工录入和学业管理。
 
 [下载与图文使用指南](https://wiseliang.cloud/student-recorder/releases/) · [GitHub Releases](https://github.com/wiseliang/student-recorder/releases/latest) · [本次更新说明](RELEASE-v1.11.0.md)
