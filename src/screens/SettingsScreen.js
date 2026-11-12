@@ -134,9 +134,9 @@ export default function SettingsScreen({ navigation }) {
         {advanced && (
           <Card style={{ paddingVertical: 6 }}>
             <RowLink
-              title="教务连接验证"
+              title="教务连接"
               icon="school-outline"
-              detail="独立 VPN 会话，仅验证连接"
+              detail="成绩查询、HIT APP验证与连接状态"
               onPress={() => navigation.navigate("AcademicAccess")}
             />
             <RowLink

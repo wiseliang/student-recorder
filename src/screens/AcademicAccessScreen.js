@@ -11,7 +11,7 @@ import {
   Field,
   ErrorBox,
 } from "../components/ui";
-export default function AcademicAccessScreen() {
+export default function AcademicAccessScreen({ navigation }) {
   const [data, D] = useState(null),
     [code, C] = useState(""),
     [error, E] = useState(null),
@@ -59,15 +59,14 @@ export default function AcademicAccessScreen() {
   };
   return (
     <Page>
-      <Title>教务连接验证</Title>
+      <Title>教务连接</Title>
       <Body muted>
-        使用已保存学校账号，在独立 VPN
-        会话中验证新教务入口。此入口不修改学校数据，成绩抓取尚未开放。
+        使用已保存学校账号连接教务系统。需要二次验证时，请查看 HIT APP 本次验证码。
       </Body>
       <ErrorBox error={error} />
       <Card>
         <Body>{data?.message || "尚未连接教务系统"}</Body>
-        {data?.connected && <Body>连接已核验，本次会话空闲10分钟后释放。</Body>}
+        {data?.connected && <Body>连接已核验，可返回学业查询；本次会话空闲15分钟后释放。</Body>}
         {data?.captchaImage && (
           <Image
             source={{ uri: data.captchaImage }}
@@ -78,7 +77,7 @@ export default function AcademicAccessScreen() {
         {["code", "captcha"].includes(data?.step) && (
           <>
             <Field
-              label="本次学校验证码"
+              label={data?.step === "captcha" ? "学校图片验证码" : "HIT APP 本次验证码"}
               value={code}
               onChangeText={C}
               keyboardType={data?.step === "captcha" ? "default" : "number-pad"}
@@ -91,6 +90,8 @@ export default function AcademicAccessScreen() {
             />
           </>
         )}
+        {data?.step === "code" && <Button secondary title="重新获取HIT APP验证码" disabled={busy || data?.busy} onPress={() => run("request-code")} />}
+        {data?.connected && <Button title="进入学业查询" onPress={() => navigation.navigate("AcademicGrades")} />}
         <Button
           title="连接学校 VPN 与新教务"
           disabled={busy || data?.busy}

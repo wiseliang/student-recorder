@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, Modal } from "react-native";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
@@ -66,6 +66,14 @@ export default function HomeScreen({ navigation }) {
     schoolError,
     connectionPrompted,
   ]);
+  const academicPrompted = useRef(false);
+  useEffect(() => {
+    if (!focused || !school.hasActiveSession || academicPrompted.current) return;
+    academicPrompted.current = true;
+    get("/api/academic-grades/state").then(r => {
+      if (!r.profile.scopes.length) navigation.navigate("AcademicScope");
+    }).catch(() => {});
+  }, [focused, school.hasActiveSession]);
   const enter = (screen, params) =>
     school.hasActiveSession
       ? navigation.navigate(screen, params)
@@ -200,6 +208,9 @@ export default function HomeScreen({ navigation }) {
           />
         </Card>
       )}
+      <Card>
+        <RowLink title="学业查询" icon="school-outline" detail="专业单科成绩 · 挂科筛选 · 补考与重修" last onPress={() => navigation.navigate("AcademicGrades")} />
+      </Card>
       <View style={{ gap: 12 }}>
         <SectionHeader title="学情日志" />
         <Card>

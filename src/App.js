@@ -8,6 +8,10 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SchoolProvider } from "./state/SchoolContext";
+import AcademicGradesScreen from "./screens/AcademicGradesScreen";
+import AcademicScopeScreen from "./screens/AcademicScopeScreen";
+import AcademicCourseScreen from "./screens/AcademicCourseScreen";
+import AcademicStudentScreen from "./screens/AcademicStudentScreen";
 import AcademicAccessScreen from "./screens/AcademicAccessScreen";
 import ContentTemplatesScreen from "./screens/ContentTemplatesScreen";
 import OverviewScreen from "./screens/OverviewScreen";
@@ -60,7 +64,11 @@ function Screens({ initial, component }) {
       {[
         ["Overview", OverviewScreen, "学期总览"],
         ["ContentTemplates", ContentTemplatesScreen, "内容模板库"],
-        ["AcademicAccess", AcademicAccessScreen, "教务连接验证"],
+        ["AcademicAccess", AcademicAccessScreen, "教务连接"],
+        ["AcademicGrades", AcademicGradesScreen, "学业查询"],
+        ["AcademicScope", AcademicScopeScreen, "专业与班级"],
+        ["AcademicCourse", AcademicCourseScreen, "专业单科成绩"],
+        ["AcademicStudent", AcademicStudentScreen, "学生成绩档案"],
         ["Record", RecordScreen, "学情日志"],
         ["WorklogTalk", WorklogTalkScreen, "工作日志"],
         ["Progress", ProgressScreen, "录入进度"],
