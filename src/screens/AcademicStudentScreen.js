@@ -2,13 +2,14 @@ import React,{useCallback,useRef,useState} from "react";
 import {Text,View} from "react-native";
 import {useFocusEffect} from "@react-navigation/native";
 import {Page,Title,Body,Card,Button,Field,Choice,ErrorBox,Pill,styles} from "../components/ui";
+import StudentPortrait from "../components/StudentPortrait";
 import Dropdown from "../components/Dropdown";
 import {get,post} from "../utils/api";
 import {dateLabel,gradeState} from "./AcademicGradesScreen";
 const API="/api/academic-grades";
 export default function AcademicStudentScreen({navigation,route}){
  const {cohortKey,studentId}=route.params;
- const [data,D]=useState(null),[error,E]=useState(null),[busy,B]=useState(false),[term,T]=useState("all"),[mode,M]=useState("all"),[edit,V]=useState(false),[from,F]=useState(""),[to,K]=useState(""),[reason,R]=useState(""),[whole,W]=useState(false),[confirm,C]=useState(null),[offset,O]=useState(0);
+ const [data,D]=useState(null),[error,E]=useState(null),[busy,B]=useState(false),[term,T]=useState("all"),[mode,M]=useState("all"),[edit,V]=useState(false),[from,F]=useState(""),[to,K]=useState(""),[reason,R]=useState(""),[whole,W]=useState(false),[confirm,C]=useState(null),[offset,O]=useState(0),[photoVersion,PV]=useState(0);
  const alive=useRef(false),lock=useRef(false);
  const load=async()=>{const r=await get(API+"/student?cohortKey="+cohortKey+"&studentId="+encodeURIComponent(studentId));if(alive.current)D(r)};
  useFocusEffect(useCallback(()=>{alive.current=true;void load().catch(E);return()=>{alive.current=false}},[cohortKey,studentId]));
@@ -23,6 +24,7 @@ export default function AcademicStudentScreen({navigation,route}){
   <ErrorBox error={error}/>
   <Button secondary title="连接教务系统" onPress={()=>navigation.navigate("AcademicAccess")}/>
   <Button title="刷新该生全部可读成绩" loading={busy} onPress={()=>run(()=>post(API+"/student/refresh",{cohortKey,studentId}))}/>
+  {data?.isManaged&&<Card><StudentPortrait studentId={studentId} refresh={photoVersion} width={96} height={128}/><Button secondary title="保存该生教务照片" disabled={busy} onPress={()=>run(async()=>{await post(API+"/photos/student",{studentId});PV(v=>v+1)})}/></Card>}
   {data&&<Card>
    <Text style={styles.heading}>学业概览</Text>
    <Body>教务学分绩 {data.student.weightedScore||"暂无"}　不及格门数 {data.student.schoolFailedCount||"暂无"}</Body>

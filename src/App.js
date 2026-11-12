@@ -9,6 +9,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SchoolProvider } from "./state/SchoolContext";
 import SchoolSignIn from "./components/SchoolSignIn";
+import AcademicPhotosScreen from './screens/AcademicPhotosScreen';
+import AcademicPatrolScreen from './screens/AcademicPatrolScreen';
 import AcademicStudentsScreen from './screens/AcademicStudentsScreen';
 import AcademicManageScreen from './screens/AcademicManageScreen';
 import AcademicGradesScreen from "./screens/AcademicGradesScreen";
@@ -71,6 +73,8 @@ function Screens({ initial, component }) {
         ["AcademicAccess", AcademicAccessScreen, "教务连接"],
         ["AcademicGrades", AcademicGradesScreen, "学业管理"],
         ["AcademicStudents", AcademicStudentsScreen, "学生与风险名单"],
+        ["AcademicPatrol", AcademicPatrolScreen, "补考巡考"],
+        ["AcademicPhotos", AcademicPhotosScreen, "学生照片"],
         ["AcademicManage", AcademicManageScreen, "名单与连接"],
         ["AcademicScope", AcademicScopeScreen, "专业与班级"],
         ["AcademicCourse", AcademicCourseScreen, "专业单科成绩"],

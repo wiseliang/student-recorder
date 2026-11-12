@@ -39,6 +39,7 @@ export default function AcademicGradesScreen({navigation}){
     {active?<Button secondary title="暂停同步" disabled={busy} onPress={()=>run(()=>post(API+'/sync/'+job.id+'/pause'))}/>:['paused','partial','failed'].includes(job.status)&&p.range==='managed'&&<Button secondary title="继续同步未完成学生" disabled={busy} onPress={()=>run(()=>post(API+'/sync',{resumeId:job.id}))}/>}
    </View>}
    <View style={{backgroundColor:colors.surface,borderRadius:16,paddingHorizontal:18}}>
+    <RowLink title="补考巡考" detail="按科目核对挂科的所带学生" icon="clipboard-outline" onPress={()=>navigation.navigate("AcademicPatrol")}/>
     <RowLink title="我的学生" detail="全部所带学生与成绩档案" icon="people-outline" onPress={()=>open('all')}/>
     <RowLink title="成绩或课程关系待核实" detail={String(count.pendingStudents)+' 人'} icon="help-circle-outline" onPress={()=>open('pending')}/>
     <RowLink title="曾不及格后已通过" detail={String(count.recoveredStudents)+' 人'} icon="checkmark-circle-outline" onPress={()=>open('recovered')}/>
