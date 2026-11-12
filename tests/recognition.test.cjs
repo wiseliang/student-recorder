@@ -8,3 +8,5 @@ test('query refreshes only expired auth, reports upload progress and discards cr
  const m=load({api,XMLHttpRequest:XHR,queueMicrotask});assert.equal((await m.recognitionSearch('synthetic',{onProgress:p=>progress.push(p)})).status,'none');assert.equal(count,2);assert.deepEqual(progress,[50,50]);
  XHR.prototype.send=function(){this.responseText='{}';user='b';queueMicrotask(()=>this.onload())};await assert.rejects(m.recognitionSearch('synthetic'),e=>e.code==='IDENTITY_CHANGED');
 });
+
+test('old backend disables recognition without blocking existing app functions',async()=>{const m=load({api:{get:async()=>{throw {status:404}}}});const s=await m.recognitionState();assert.equal(s.configured,false);assert.match(s.bridgeError,/服务端升级/)});

@@ -6,14 +6,14 @@ import * as Manipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import {Page,Title,Body,Card,Button,ErrorBox,Pill,styles} from '../components/ui';
 import {get,post} from '../utils/api';
-import {cropRectangle,recognitionSearch} from '../utils/recognition';
+import {cropRectangle,recognitionSearch,recognitionState} from '../utils/recognition';
 const API='/api/recognition';
 export default function RecognitionScreen({navigation}){
  const [state,S]=useState(null),[error,E]=useState(null),[busy,B]=useState(false),[image,I]=useState(null),[result,R]=useState(null),[crop,C]=useState(false),[selection,Q]=useState(null),[progress,P]=useState(null);
  const page=useRef(null);
  useEffect(()=>{if(result){const timer=setTimeout(()=>page.current?.scrollToEnd({animated:true}),120);return()=>clearTimeout(timer)}},[result]);
  const alive=useRef(false),lock=useRef(false),current=useRef(),box=useRef({width:1,height:300}),start=useRef(),selectionRef=useRef(),abort=useRef(),temp=useRef(new Set());current.current={image,crop};
- const load=async()=>{const s=await get(API+'/state');if(alive.current)S(s)};
+ const load=async()=>{const s=await recognitionState();if(alive.current)S(s)};
  useFocusEffect(useCallback(()=>{alive.current=true;void load().catch(E);return()=>{alive.current=false;abort.current?.abort();R(null);I(null);B(false);P(null)}},[]));
  useEffect(()=>()=>{for(const uri of temp.current)void FileSystem.deleteAsync(uri,{idempotent:true}).catch(()=>{})},[]);
  const run=async fn=>{if(lock.current)return;lock.current=true;B(true);E(null);try{await fn()}catch(e){if(alive.current&&e.code!=='ABORTED'){E(e);if(e.code==='MULTIPLE_FACES')C(true)}}finally{lock.current=false;if(alive.current)B(false)}};

@@ -1,4 +1,7 @@
-import {BASE_URL,identity,refreshIdentity,ApiError} from './api';
+import {BASE_URL,identity,refreshIdentity,ApiError,get} from './api';
+export async function recognitionState(){
+ try{return await get('/api/recognition/state')}catch(e){if(e.status!==404)throw e;return {configured:false,students:[],authorizedCount:0,bridgeError:'识人功能等待配套服务端升级，其他学工功能可继续使用。'};}
+}
 export function cropRectangle(image,box,start,end){
  const scale=Math.min(box.width/image.width,box.height/image.height),w=image.width*scale,h=image.height*scale,left=(box.width-w)/2,top=(box.height-h)/2;
  const clamp=(v,max)=>Math.max(0,Math.min(max,v));

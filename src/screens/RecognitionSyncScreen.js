@@ -3,12 +3,13 @@ import {View} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {Page,Title,Body,Card,Button,Choice,Field,ErrorBox,Pill} from '../components/ui';
 import {get,post} from '../utils/api';
+import {recognitionState} from '../utils/recognition';
 const API='/api/recognition',active=['pending','running','pause_requested'];
 const labels={pending:'准备同步',running:'正在同步',pause_requested:'正在暂停',paused:'已暂停',awaiting_auth:'等待学校或教务认证',awaiting_setup:'等待范围配置',partial:'部分完成',completed:'已完成',failed:'同步中断',cancelled:'范围变化，任务已停止'};
 export default function RecognitionSyncScreen({navigation}){
  const [data,D]=useState(null),[error,E]=useState(null),[busy,B]=useState(false),[selected,S]=useState([]),[reference,F]=useState(''),[consent,C]=useState(false),[refreshPhotos,V]=useState(false),[query,Q]=useState(''),[binding,H]=useState(false),[username,U]=useState(''),[password,P]=useState('');
  const alive=useRef(false),lock=useRef(false);
- const load=async()=>{const d=await get(API+'/state');if(alive.current)D(d)};
+ const load=async()=>{const d=await recognitionState();if(alive.current)D(d)};
  const run=async fn=>{if(lock.current)return;lock.current=true;B(true);E(null);try{await fn();await load()}catch(e){if(alive.current)E(e)}finally{lock.current=false;if(alive.current)B(false)}};
  useFocusEffect(useCallback(()=>{alive.current=true;void load().catch(E);return()=>{alive.current=false;P('');S([]);C(false)}},[]));
  const working=active.includes(data?.job?.status);
