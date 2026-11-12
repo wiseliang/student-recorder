@@ -114,6 +114,7 @@ export function Page({
   footer,
   scroll = true,
   contentStyle,
+  scrollRef,
 }) {
   const inset = useSafeAreaInsets();
   const headerHeight = useContext(HeaderHeightContext);
@@ -124,6 +125,7 @@ export function Page({
     >
       {scroll ? (
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[styles.content, {paddingTop:16+(headerHeight?0:inset.top)}, contentStyle]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"

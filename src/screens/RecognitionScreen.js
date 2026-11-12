@@ -10,6 +10,8 @@ import {cropRectangle,recognitionSearch} from '../utils/recognition';
 const API='/api/recognition';
 export default function RecognitionScreen({navigation}){
  const [state,S]=useState(null),[error,E]=useState(null),[busy,B]=useState(false),[image,I]=useState(null),[result,R]=useState(null),[crop,C]=useState(false),[selection,Q]=useState(null),[progress,P]=useState(null);
+ const page=useRef(null);
+ useEffect(()=>{if(result){const timer=setTimeout(()=>page.current?.scrollToEnd({animated:true}),120);return()=>clearTimeout(timer)}},[result]);
  const alive=useRef(false),lock=useRef(false),current=useRef(),box=useRef({width:1,height:300}),start=useRef(),selectionRef=useRef(),abort=useRef(),temp=useRef(new Set());current.current={image,crop};
  const load=async()=>{const s=await get(API+'/state');if(alive.current)S(s)};
  useFocusEffect(useCallback(()=>{alive.current=true;void load().catch(E);return()=>{alive.current=false;abort.current?.abort();R(null);I(null);B(false);P(null)}},[]));
@@ -38,7 +40,7 @@ export default function RecognitionScreen({navigation}){
   if(x.base64.length>2500000)throw Error('照片仍然过大，请先框选一人后查询。');
   const controller=new AbortController();abort.current=controller;const r=await recognitionSearch(x.base64,{signal:controller.signal,onProgress:p=>{if(alive.current)P(p)}});if(alive.current&&!controller.signal.aborted){R(r);C(false)}
  });
- return <Page><Title>拍照识人</Title><Body muted>从本人及明确共享的人员库查询候选，结果需人工核对。</Body><ErrorBox error={error}/>
+ return <Page scrollRef={page}><Title>拍照识人</Title><Body muted>从本人及明确共享的人员库查询候选，结果需人工核对。</Body><ErrorBox error={error}/>
  <Card><Body>当前可查 {state?.scope?.peopleCount??'—'} 人 · {state?.scope?.libraryCount??'—'} 个库</Body>{state?.setupError&&<Body muted>{state.setupError}</Body>}{state?.bridgeError&&<Body muted>{state.bridgeError}</Body>}{state&&!state.configured&&<Body muted>识人服务尚未连接，请联系维护者。其他学工功能可继续使用。</Body>}<Button secondary title="同步进度与照片授权" onPress={()=>navigation.navigate('RecognitionSync')}/><Button secondary title="刷新可查范围" disabled={busy} onPress={()=>run(load)}/></Card>
  <View style={{flexDirection:'row',gap:12}}><Button style={{flex:1}} title="拍照" icon="camera-outline" disabled={busy||!state?.configured} onPress={()=>choose(true)}/><Button style={{flex:1}} secondary title="相册选图" disabled={busy||!state?.configured} onPress={()=>choose(false)}/></View>
  {image&&<Card><View testID="recognition-crop-preview" onLayout={e=>{box.current=e.nativeEvent.layout}} style={{height:300,position:'relative',overflow:'hidden'}} {...pan.panHandlers}><Image source={{uri:image.uri}} style={{width:'100%',height:'100%'}} resizeMode="contain"/>{crop&&selection&&<View pointerEvents="none" style={{position:'absolute',left:Math.min(selection.start.x,selection.end.x),top:Math.min(selection.start.y,selection.end.y),width:Math.abs(selection.end.x-selection.start.x),height:Math.abs(selection.end.y-selection.start.y),borderWidth:2,borderColor:'#1B62A5',backgroundColor:'rgba(27,98,165,0.12)'}}/>}</View>
