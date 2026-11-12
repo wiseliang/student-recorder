@@ -22,7 +22,7 @@ export default function AcademicGradesScreen({navigation}){
   <View style={{gap:6}}><Title>学业管理</Title><Body muted>先看所带学生，及时跟进未通过课程。</Body></View>
   <ErrorBox error={error}/>
   {data&&<>
-   <Dropdown label="统计学期" value={term||data.term||''} returnValue options={data.terms.map(x=>({value:x,label:x+(x===data.defaultTerm?'（学校当前学期）':'')}))} onChange={v=>{T(v);current.current=v;void run(load)}}/>
+   <Dropdown label="统计学期" value={term||data.term||''} returnValue options={data.terms.map(x=>({value:x,label:x+(x===data.defaultTerm?(data.calendarVerified?'（学校当前学期）':'（默认学期，待校历核验）'):'')}))} onChange={v=>{T(v);current.current=v;void run(load)}}/>
    <View style={{backgroundColor:colors.surface,borderRadius:16,padding:20,gap:10}}>
     <View style={{flexDirection:'row',alignItems:'baseline',gap:8}}><Text style={{fontSize:36,fontWeight:'600',color:colors.ink}}>{c.total}</Text><Body>名所带学生</Body></View>
     <Body muted>历史已同步 {c.synced} 人 · 尚缺 {c.missing} 人</Body>
@@ -41,6 +41,7 @@ export default function AcademicGradesScreen({navigation}){
    <View style={{backgroundColor:colors.surface,borderRadius:16,paddingHorizontal:18}}>
     <RowLink title="我的学生" detail="全部所带学生与成绩档案" icon="people-outline" onPress={()=>open('all')}/>
     <RowLink title="成绩或课程关系待核实" detail={String(count.pendingStudents)+' 人'} icon="help-circle-outline" onPress={()=>open('pending')}/>
+    <RowLink title="曾不及格后已通过" detail={String(count.recoveredStudents)+' 人'} icon="checkmark-circle-outline" onPress={()=>open('recovered')}/>
     <RowLink title="全专业查询" detail="按专业查学生和单科成绩" icon="search-outline" onPress={()=>navigation.navigate('AcademicStudents',{range:'professional',term:data.term})}/>
     <RowLink title="名单、范围与连接" detail="学工匹配、手动调整、教务连接" icon="settings-outline" last onPress={()=>navigation.navigate('AcademicManage')}/>
    </View>

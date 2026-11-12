@@ -6,7 +6,7 @@ import Dropdown from '../components/Dropdown';
 import {get,post} from '../utils/api';
 import {shareAcademicExport} from '../utils/academicExport';
 import {dateLabel} from './AcademicGradesScreen';
-const API='/api/academic-grades',labels={all:'我的学生',current:'本学期挂科',makeup:'待补考核对名单',historical:'往期未通过',missing:'尚未同步',pending:'成绩与关系待核实'};
+const API='/api/academic-grades',labels={all:'我的学生',current:'本学期挂科',makeup:'待补考核对名单',historical:'往期未通过',missing:'尚未同步',pending:'成绩与关系待核实',recovered:'曾不及格后已通过'};
 export default function AcademicStudentsScreen({navigation,route}){
  const [data,D]=useState(null),[view,V]=useState(route.params?.view||'all'),[term,T]=useState(route.params?.term||''),[range,R]=useState(route.params?.range==='professional'?'professional':'managed'),[key,K]=useState(''),[q,Q]=useState(''),[offset,O]=useState(0),[error,E]=useState(null),[busy,B]=useState(false),[confirm,C]=useState(false);
  const alive=useRef(false),lock=useRef(false),values=useRef({});values.current={view,term,range,key,q,offset};
@@ -25,13 +25,15 @@ export default function AcademicStudentsScreen({navigation,route}){
    <Field label="搜索姓名、学号或班级" value={q} onChangeText={Q}/><Button secondary title="搜索学生" disabled={busy} onPress={()=>{O(0);values.current.offset=0;void run(load)}}/>
    <Body muted>匹配 {data.total} 人。当前范围历史同步 {data.coverage.synced}/{data.coverage.total} 人。</Body>
    {['makeup','historical'].includes(view)&&<Body muted>{data.makeupNote}</Body>}
-   {['current','makeup','historical','pending'].includes(view)&&<Button secondary title="导出当前风险核对名单" disabled={busy} onPress={()=>run(async()=>shareAcademicExport(await get(API+'/export?'+params())))}/>}
+   {['current','makeup','historical','pending','recovered'].includes(view)&&<Button secondary title="导出当前风险核对名单" disabled={busy} onPress={()=>run(async()=>shareAcademicExport(await get(API+'/export?'+params())))}/>}
    {key&&<Button secondary title="查询这个专业的单科成绩" onPress={()=>navigation.navigate('AcademicCourse',{cohortKey:key})}/>}
    {range==='professional'&&(confirm?<Card><Body>将同步全部已设置专业的学生，包含非所带学生。此次操作会读取更多成绩。</Body><Button title="确认同步全专业" disabled={busy} onPress={()=>run(async()=>{await post(API+'/sync',{range:'professional'});C(false)})}/><Button secondary title="取消" onPress={()=>C(false)}/></Card>:<Button secondary title="同步全专业成绩…" onPress={()=>C(true)}/>)}
    {!data.students.length&&<Body muted>当前条件没有匹配学生。未同步的成绩不能据此判断为没有挂科。</Body>}
    {data.students.map(s=><Card key={s.studentId}>
     <Text style={styles.heading}>{s.name}</Text><Body muted>{s.studentId}　{s.className||'班级待匹配'}</Body>
     <Body>本学期挂科 {s.currentFailures} 门 · 往期未通过 {s.historicalFailures} 门</Body>
+    {!!s.recoveredCount&&<Body>曾不及格后已通过 {s.recoveredCount} 门</Body>}
+    {view==='recovered'&&(s.recoveries||[]).map(r=><Body key={r.code}>{r.name}　{r.score}　{r.semester} {r.attempt}</Body>)}
     {!!s.pending&&<Body muted>另有 {s.pending} 门关系或成绩待核实</Body>}
     {s.risk.filter(r=>view==='current'?r.bucket==='current':['historical','makeup'].includes(view)?r.bucket==='historical':true).map(r=><Body key={r.code}>{r.name}　{r.score}　{r.state==='pending'?'待核实':r.semester}</Body>)}
     <Body muted>{dateLabel(s.checkedAt)}{s.recordCount!==null?' · '+s.recordCount+' 条成绩':''}</Body>
