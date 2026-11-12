@@ -8,6 +8,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SchoolProvider } from "./state/SchoolContext";
+import SchoolSignIn from "./components/SchoolSignIn";
 import AcademicGradesScreen from "./screens/AcademicGradesScreen";
 import AcademicScopeScreen from "./screens/AcademicScopeScreen";
 import AcademicCourseScreen from "./screens/AcademicCourseScreen";
@@ -29,6 +30,7 @@ import TaskDetailsScreen from "./screens/TaskDetailsScreen";
 import {
   initializeIdentity,
   recoverIdentity,
+  getRecoveryKey,
   onIdentityLost,
 } from "./utils/api";
 import {
@@ -119,7 +121,7 @@ function Root() {
   }, []);
   if (!ready)
     return (
-      <Page contentStyle={{ paddingTop: 76 }}>
+      <Page contentStyle={{ paddingTop: 48 }}>
         <View style={{ gap: 12 }}>
           <Icon name="leaf-outline" size={34} />
           <Title>学工录入助手</Title>
@@ -127,15 +129,22 @@ function Root() {
         </View>
         <Card>
           <Body>{busy ? "正在连接你的工作记录…" : "连接尚未完成"}</Body>
-          <ErrorBox error={error} />
+          <ErrorBox error={error?.code === "SCHOOL_SIGNIN_REQUIRED" ? null : error} />
           {!busy && <Button title="重新连接" onPress={init} />}
         </Card>
         {error && (
           <>
-            <RowLink title="恢复原设备记录" last onPress={() => V(!recovery)} />
+            <SchoolSignIn onConnected={() => { E(null); R(true); }} />
+            <Button secondary title="使用本机备份恢复" disabled={busy} onPress={async () => {
+              B(true); E(null);
+              try {const saved=await getRecoveryKey();if(!saved)throw new Error("本机没有可用备份，请通过上方学校账号验证找回");await recoverIdentity(saved);R(true);}
+              catch(e){E(e)}finally{B(false)}
+            }} />
+            <RowLink title="其他恢复方式（可选）" last onPress={() => V(!recovery)} />
             {recovery && (
               <Card>
-                <Field label="恢复码" value={code} onChangeText={C} />
+                <Body muted>恢复码是可选备用方式；没有恢复码可通过上方学校账号验证。</Body>
+                <Field label="备用恢复码" value={code} onChangeText={C} />
                 <Button
                   title="恢复账户"
                   disabled={!code.trim()}
