@@ -1,174 +1,31 @@
-# 批量录入助手 (Student Work Recorder)
+# 学工录入助手
 
-React Native Android app for batch recording student activities (companionship & talk records) via automated browser control.
+当前稳定版 **v1.11.0**，Android 应用与[配套服务端](https://github.com/wiseliang/hit-record-server)共同提供学工录入和学业管理。
 
-## Architecture
+[下载与图文使用指南](https://wiseliang.cloud/student-recorder/releases/) · [GitHub Releases](https://github.com/wiseliang/student-recorder/releases/latest) · [本次更新说明](RELEASE-v1.11.0.md)
 
-```
-[Android App] ──HTTPS──> [Cloudflare Tunnel] ──> [Express :3000] ──Playwright──> [xuegong.hitwh.edu.cn]
-                              │                        │
-                              └── trycloudflare.com    └── MySQL (credentials, tasks)
-```
+## 功能
 
-- App authenticates users via WeChat-style `openid`
-- Two login methods: password (saved credentials) and QR code scan (SSO page)
-- Backend uses Playwright headless Chrome to automate university system web pages
-- Tasks execute asynchronously; frontend polls for progress
+- 学情陪伴、谈话与工作日志：分别读取学校名单，按过去的有效时间生成建议，支持随机方式、可维护内容模板、逐条核对后提交。
+- 学期总览：区分学校次数与轮次，工作日志默认每人每学期一次；异常和待核实记录单独提示。
+- 学业管理：默认所带学生总览、当前学期挂科、历史未通过、补考核对、按专业单科查询、学生历史成绩及重修课程关系。
+- 补考巡考：按原考试学期、科目查看所带学生，不代替学校发布的补考资格、时间与地点。
+- 学生档案照片：按学号核对并保存，供人工查看；一键按新版八列名册导出到服务器，下载需要登录。
+- 学校账号验证找回原账户，恢复码仅作可选备份。
 
-## Project Structure
+## 开发与验证
 
-```
-app/                          # React Native Expo frontend
-├── App.js                    # Entry point → AppRegistry
-├── src/
-│   ├── App.js                # Main app: splash screen, navigation, openid init
-│   ├── screens/
-│   │   ├── HomeScreen.js     # Home: week display, 4 entry types, credential check
-│   │   ├── RecordScreen.js   # Login (password/QR), student list, start recording
-│   │   ├── ProgressScreen.js # Task progress polling with exponential backoff
-│   │   ├── ResultScreen.js   # Results: per-student breakdown, errors
-│   │   ├── SettingsScreen.js # Credential management
-│   │   ├── HistoryScreen.js  # Task history
-│   │   └── WeekSettingsScreen.js
-│   └── utils/
-│       ├── api.js            # HTTP client with timeout (15s normal, 45s auth)
-│       └── week.js           # Week calculation utilities
-└── android/                  # Android native project (bare Expo workflow)
-    ├── app/build.gradle      # Build config: hermesFlags, ndk.abiFilters
-    └── gradle.properties     # Hermes, ProGuard, GIF/WebP, architectures
+React Native 0.76 / Expo 52，源码在 `src/`，Android 工程在 `android/`。
 
-server/                       # Node.js Express backend
-├── app.js                    # Express entry, routes, health check
-├── routes/auth.js            # Auth routes: login, QR, credential, session-status
-├── routes/task.js            # Task CRUD, code submission
-├── services/
-│   ├── browser.js            # Playwright pool (2 contexts, 60s queue timeout)
-│   ├── login.js              # Xuegong login automation, pendingLogins Map
-│   ├── navigator.js          # Page navigation, student list extraction
-│   ├── orchestrator.js       # Task execution engine
-│   ├── companion.js          # Companionship record automation
-│   └── talk.js               # Talk record automation
-├── models/                   # Database models
-└── middleware/               # Auth, error handling
+```sh
+npm ci --ignore-scripts
+npm test
+node scripts/check-version.cjs
+npx expo export --platform android --output-dir /tmp/student-recorder-export
 ```
 
-## Build & Deploy
+通过 `EXPO_PUBLIC_API_BASE_URL` 配置 HTTPS 服务入口。正式安装包使用 `https://wiseliang.cloud/student-recorder`，不得把测试 API 地址打入正式包。签名会话通过安全存储保存，不能仅凭 openid 认领账户。不要将学校密码、Cookie、用户数据和照片提交到仓库。
 
-### APK Build (optimized)
+原生构建见 `.github/workflows/android-apk.yml`。v1.11.0 为 versionCode 18，Android 7.0+ / arm64-v8a；发布沿用已验证的签名 APK，覆盖安装保留应用数据。JavaScript 导出检查通过不等于完成真机验收。
 
-```bash
-cd app/android
-
-# Release APK - arm64 only (~21MB)
-./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
-
-# Debug APK - all architectures (for emulator testing)
-./gradlew assembleDebug
-```
-
-Output: `app/build-final/outputs/apk/release/app-release.apk`
-
-### Size Optimization (73MB → 21MB, -71%)
-
-| Optimization | Location | Saving |
-|---|---|---|
-| Arm64-v8a only (not all 4 ABIs) | `-PreactNativeArchitectures=arm64-v8a` + `ndk.abiFilters` | ~50MB |
-| Hermes `-O` (no source map) | `build.gradle`: `hermesFlags = ["-O"]` | ~2MB |
-| GIF/WebP disabled | `gradle.properties`: `expo.gif.enabled=false` | ~5MB |
-| ProGuard + shrinkResources | `gradle.properties`: `android.enableProguardInReleaseBuilds=true` | ~2MB |
-
-Note: `react-native-reanimated` must be kept — removing it causes white screen on launch.
-
-### Server Deploy
-
-```bash
-# On server (118.190.208.230, path: /root/hit-record/)
-node server/app.js
-
-# Safe restart
-bash /root/restart-server.sh
-```
-
-### Server Maintenance
-
-| Mechanism | Purpose |
-|---|---|
-| Login session TTL (30min) | Auto-release browser contexts |
-| QR session TTL (5min) | Auto-cleanup expired QR scans |
-| Browser pool queue timeout (60s) | Prevent indefinite waiting |
-| Daily cron restart (4am) | Memory cleanup |
-| `/root/restart-server.sh` | Safe restart with `fuser -k` |
-
-## API Endpoints
-
-### Auth
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/auth/login` | WeChat openid login |
-| GET | `/api/auth/credential` | Check saved credentials |
-| POST | `/api/auth/credential` | Save credentials |
-| GET | `/api/auth/session-status` | Check active browser session |
-| POST | `/api/auth/start-login` | Start password login |
-| POST | `/api/auth/submit-captcha` | Submit captcha |
-| POST | `/api/auth/submit-code` | Submit MFA code |
-| POST | `/api/auth/qrcode-start` | Start QR login |
-| POST | `/api/auth/qrcode-wait` | Check QR scan status |
-| POST | `/api/auth/qrcode-submit-code` | Submit MFA from QR flow |
-| GET | `/api/auth/student-list` | Get student list |
-
-### Task
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/task/create` | Create recording task |
-| GET | `/api/task/:uuid` | Get task status + details |
-| POST | `/api/task/:uuid/submit-code` | Submit captcha during task |
-| POST | `/api/task/:uuid/resend-code` | Resend captcha |
-
-### Health
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Server health + memory |
-
-## Recent Fixes
-
-### Session Management (2026-06-23)
-- **Bug**: Browser pool exhausted after days of uptime, causing request timeouts
-- **Fix**: Added TTL to sessions (30min login, 5min QR), safe restart script, daily cron
-
-### Mobile Page Navigation (2026-06-23)
-- **Bug**: Login landing on mobile page (`xg_mobile/jzgHome`) misidentified as work log
-- **Fix**: Narrowed URL check to `xg_fdygzrz/rzgl` only
-
-### Client Timeout (2026-06-23)
-- **Bug**: Password login took 20-30s but client timeout was 15s
-- **Fix**: Split timeouts: 45s for auth endpoints, 15s for regular
-
-### Result Display (2026-06-23)
-- **Bug**: Results showed only sequence numbers, not student names
-- **Fix**: Added per-student grouped details with name-based aggregation
-
-### Week Selection (2026-06-23)
-- **Bug**: Batch and fill-missing modes hid week selector
-- **Fix**: Show week multi-select for all entry types
-
-## Troubleshooting
-
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| White screen on launch | Duplicate `const` in App.js or missing dependency | Check Metro logs |
-| Request timeout | Browser pool exhausted | Restart server: `bash /root/restart-server.sh` |
-| "Already on work log page" | Mobile page misidentified | Server fix applied 2026-06-23 |
-| Student list empty | Session expired or login failed | Re-login via QR code |
-| Can't save credentials | openid not initialized | Check network, reinstall app |
-| Cloudflare URL changed | Server restart changed tunnel URL | Check `app/src/utils/api.js` BASE_URL |
-
-
-## 会话隔离与周次修复升级
-
-此客户端需与 `wiseliang/hit-record-server` 的签名会话版本配套使用；所有受保护请求会携带服务端登录返回的 bearer token。不能只更新一端。
-
-首页和设置页直接读取 `/api/week/current` 的周次与学期基准。修改全局基准需要服务端 `ADMIN_OPENIDS` 中的管理员身份。后端持久化配置后立即生效。
-
-Android 可通过 `EXPO_PUBLIC_API_BASE_URL` 指定固定 HTTPS 服务地址；没有配置时保留原地址。旧临时隧道域名的可用性需在部署时确认。旧本地身份首次升级需重新配置学校凭证，不自动认领历史。签名会话 30 天有效，启动应用时续期；已过期时可在错误页重新登录并配置凭证。
-
-验证：`npm ci --ignore-scripts`、`npm test`、`npx expo export --platform android --output-dir /tmp/android-export`。导出 Android JavaScript / Hermes 成功不代表原生 APK 构建及真机验收已完成。
+公开网页提供 Android 下载与图文指南；学生查询、同步及录入在应用内使用。当前版本不包含人脸识别。
