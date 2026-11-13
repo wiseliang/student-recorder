@@ -1,8 +1,11 @@
 # 学工录入助手
 
-当前稳定版 **v1.11.0**，Android 应用与[配套服务端](https://github.com/wiseliang/hit-record-server)共同提供学工录入和学业管理。
+> v1.12.0 新增学校身份接入、后台学生库同步与拍照识人，配套学工1.12和识同事3.4后端。
 
-[下载与图文使用指南](https://wiseliang.cloud/student-recorder/releases/) · [GitHub Releases](https://github.com/wiseliang/student-recorder/releases/latest) · [本次更新说明](RELEASE-v1.11.0.md)
+
+当前版本 **v1.12.0**，Android 应用与[配套服务端](https://github.com/wiseliang/hit-record-server)共同提供学工录入和学业管理。
+
+[下载与图文使用指南](https://wiseliang.cloud/student-recorder/releases/) · [GitHub Releases](https://github.com/wiseliang/student-recorder/releases/latest) · [本次更新说明](RELEASE-v1.12.0.md)
 
 ## 功能
 
@@ -26,6 +29,6 @@ npx expo export --platform android --output-dir /tmp/student-recorder-export
 
 通过 `EXPO_PUBLIC_API_BASE_URL` 配置 HTTPS 服务入口。正式安装包使用 `https://wiseliang.cloud/student-recorder`，不得把测试 API 地址打入正式包。签名会话通过安全存储保存，不能仅凭 openid 认领账户。不要将学校密码、Cookie、用户数据和照片提交到仓库。
 
-原生构建见 `.github/workflows/android-apk.yml`。v1.11.0 为 versionCode 18，Android 7.0+ / arm64-v8a；发布沿用已验证的签名 APK，覆盖安装保留应用数据。JavaScript 导出检查通过不等于完成真机验收。
+原生构建见 `.github/workflows/android-apk.yml`。v1.12.0 为 versionCode 19，Android 7.0+ / arm64-v8a；发布沿用已验证的签名 APK，覆盖安装保留应用数据。JavaScript 导出检查通过不等于完成真机验收。
 
-公开网页提供 Android 下载与图文指南；学生查询、同步及录入在应用内使用。当前版本不包含人脸识别。
+公开网页提供 Android 下载与图文指南；学生查询、同步及录入在应用内使用。拍照识人仅同步已获人脸识别用途授权的所带学生，查询结果需人工核对。

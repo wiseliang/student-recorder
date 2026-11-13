@@ -15,6 +15,7 @@ export default function AcademicManageScreen({navigation}){
    {result&&<Body>学工 {result.total} 人，教务已匹配 {result.matched} 人，待补充范围 {result.unmatched} 人。</Body>}
    <Body muted>默认同步与看板仅针对所带学生；手动调整请进入学生列表。</Body>
   </Card>
+  <Button secondary title="拍照识人及学生库同步" onPress={()=>navigation.navigate('Recognition')}/>
   <Button secondary title="保存与查看学生照片" onPress={()=>navigation.navigate('AcademicPhotos')}/>
   <Button secondary title="设置所带专业与班级" onPress={()=>navigation.navigate('AcademicScope')}/>
   <Button secondary title="连接学工系统" onPress={()=>navigation.navigate('SchoolLogin')}/>

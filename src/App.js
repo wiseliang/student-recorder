@@ -1,3 +1,7 @@
+import RecognitionScreen from './screens/RecognitionScreen';
+import RecognitionSyncScreen from './screens/RecognitionSyncScreen';
+import RecognitionPersonScreen from './screens/RecognitionPersonScreen';
+import {post} from './utils/api';
 import React, { useEffect, useState } from "react";
 import { View, StatusBar } from "react-native";
 import {
@@ -75,6 +79,9 @@ function Screens({ initial, component }) {
         ["AcademicGrades", AcademicGradesScreen, "学业管理"],
         ["AcademicStudents", AcademicStudentsScreen, "学生与风险名单"],
         ["AcademicPatrol", AcademicPatrolScreen, "补考巡考"],
+        ["Recognition", RecognitionScreen, "拍照识人"],
+        ["RecognitionSync", RecognitionSyncScreen, "学生库同步"],
+        ["RecognitionPerson", RecognitionPersonScreen, "人员档案"],
         ["AcademicPhotos", AcademicPhotosScreen, "学生照片"],
         ["AcademicPhotoExports", AcademicPhotoExportsScreen, "照片导出到服务器"],
         ["AcademicManage", AcademicManageScreen, "名单与连接"],
@@ -129,6 +136,7 @@ function Root() {
       E(e);
     });
   }, []);
+  useEffect(()=>{if(ready)void post("/api/recognition/check").catch(()=>{});},[ready]);
   if (!ready)
     return (
       <Page contentStyle={{ paddingTop: 48 }}>

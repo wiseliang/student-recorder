@@ -1,0 +1,12 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),babel=require('@babel/core'),fs=require('fs'),vm=require('vm');
+function load(extra={}){const code=babel.transformSync(fs.readFileSync(__dirname+'/../src/utils/recognition.js','utf8'),{configFile:false,babelrc:false,plugins:['@babel/plugin-transform-modules-commonjs']}).code,exports={};vm.runInNewContext(code,{exports,require:()=>extra.api||{},...extra});return exports;}
+test('crop maps letterboxed image coordinates, reverse drags, clamps and rejects tiny areas',()=>{const {cropRectangle}=load();const image={width:1200,height:600},box={width:300,height:300};assert.deepEqual(JSON.parse(JSON.stringify(cropRectangle(image,box,{x:250,y:200},{x:50,y:100}))),{originX:200,originY:100,width:800,height:400});assert.deepEqual(JSON.parse(JSON.stringify(cropRectangle(image,box,{x:-30,y:-10},{x:500,y:500}))),{originX:0,originY:0,width:1200,height:600});assert.equal(cropRectangle(image,box,{x:30,y:100},{x:31,y:101}),null)});
+test('query refreshes only expired auth, reports upload progress and discards cross-account response',async()=>{
+ let user='a',token='old',count=0,progress=[];class ApiError extends Error{constructor(message,status,code){super(message);Object.assign(this,{status,code})}}
+ class XHR{constructor(){this.upload={};this.status=200}open(){}setRequestHeader(){}send(){count++;this.upload.onprogress({lengthComputable:true,loaded:5,total:10});this.status=count===1?401:200;this.responseText=JSON.stringify(count===1?{code:'AUTH_REQUIRED'}:{status:'none',matches:[]});queueMicrotask(()=>this.onload())}abort(){this.onabort()}}
+ const api={BASE_URL:'https://example.invalid',ApiError,identity:async()=>({openid:user,token}),refreshIdentity:async()=>{token='new'}};
+ const m=load({api,XMLHttpRequest:XHR,queueMicrotask});assert.equal((await m.recognitionSearch('synthetic',{onProgress:p=>progress.push(p)})).status,'none');assert.equal(count,2);assert.deepEqual(progress,[50,50]);
+ XHR.prototype.send=function(){this.responseText='{}';user='b';queueMicrotask(()=>this.onload())};await assert.rejects(m.recognitionSearch('synthetic'),e=>e.code==='IDENTITY_CHANGED');
+});
+
+test('old backend disables recognition without blocking existing app functions',async()=>{const m=load({api:{get:async()=>{throw {status:404}}}});const s=await m.recognitionState();assert.equal(s.configured,false);assert.match(s.bridgeError,/服务端升级/)});
