@@ -17,7 +17,7 @@ export default function AcademicGradesScreen({navigation}){
  const run=async fn=>{if(lock.current)return;lock.current=true;B(true);E(null);try{await fn();await load()}catch(e){if(alive.current)E(e)}finally{lock.current=false;B(false)}};
  const open=view=>navigation.navigate('AcademicStudents',{view,term:data?.term});
  const count=data?.counts,c=data?.coverage,job=state?.job,p=job?.payload;
- const metrics=[['本学期挂科',count?.currentStudents,'current',true],['待补考核对',count?.historicalStudents,'makeup',true],['往期未通过',count?.historicalStudents,'historical',false],['尚未同步',c?.missing,'missing',false]];
+ const metrics=[['本学期挂科',count?.currentStudents,'current',true],['待补考核对',count?.makeupStudents??count?.historicalStudents,'makeup',true],['往期未通过',count?.historicalStudents,'historical',false],['尚未同步',c?.missing,'missing',false]];
  return <Page>
   <View style={{gap:6}}><Title>学业管理</Title><Body muted>先看所带学生，及时跟进未通过课程。</Body></View>
   <ErrorBox error={error}/>
@@ -33,11 +33,12 @@ export default function AcademicGradesScreen({navigation}){
    <View style={{flexDirection:'row',flexWrap:'wrap',gap:12}}>{metrics.map(([label,value,view,alert])=><Pressable key={view} accessibilityRole="button" accessibilityLabel={label} onPress={()=>open(view)} style={({pressed})=>({width:'48%',flexGrow:1,borderRadius:14,padding:18,gap:8,backgroundColor:alert?'#FFF2F1':colors.surface,opacity:pressed?.7:1})}>
     <Text style={{fontSize:30,fontWeight:'600',color:alert?colors.danger:colors.ink}}>{value??'—'}</Text><Text style={{fontSize:15,color:colors.ink}}>{label}</Text>
    </Pressable>)}</View>
-   <Body muted>数字只统计已读取记录；待补考核对含往期欠课，资格需以学校安排核实。</Body>
+   <Body muted>数字只统计已读取记录；待补考核对含往期欠课，旷考不进入补考核对，其他资格需以学校安排核实。</Body>
    <Button title={active?'正在同步所选范围…':'同步我的学生成绩'} loading={busy} disabled={active} onPress={()=>run(()=>post(API+'/sync',{range:'managed'}))}/>
    {job&&<View style={{gap:5}}><Body muted>{({pending:'准备同步',running:'正在同步',pause_requested:'准备暂停',paused:'已暂停',partial:'部分完成',completed:'同步完成',failed:'同步中断'})[job.status]} · 已保存 {p.success||0}/{p.total||0} 人{p.range==='professional'?'（全专业任务）':''}</Body>{!!p.message&&<Body muted>{p.message}</Body>}
     {active?<Button secondary title="暂停同步" disabled={busy} onPress={()=>run(()=>post(API+'/sync/'+job.id+'/pause'))}/>:['paused','partial','failed'].includes(job.status)&&p.range==='managed'&&<Button secondary title="继续同步未完成学生" disabled={busy} onPress={()=>run(()=>post(API+'/sync',{resumeId:job.id}))}/>}
    </View>}
+   <Card><Body>当前挂科学分合计 {count.failedCredits??'—'} 分</Body><Body muted>{data.failedCreditNote||'已通过不累计；重修学分变化取首次挂科学分。'}</Body><Button secondary title="查看挂科学分排名" onPress={()=>open('credits')}/></Card>
    <View style={{backgroundColor:colors.surface,borderRadius:16,paddingHorizontal:18}}>
     <RowLink title="补考巡考" detail="按科目核对挂科的所带学生" icon="clipboard-outline" onPress={()=>navigation.navigate("AcademicPatrol")}/>
     <RowLink title="我的学生" detail="全部所带学生与成绩档案" icon="people-outline" onPress={()=>open('all')}/>
