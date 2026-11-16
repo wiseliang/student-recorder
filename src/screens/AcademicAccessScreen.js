@@ -22,7 +22,7 @@ export default function AcademicAccessScreen({navigation,route}){
  const run=async(path,body={})=>{if(lock.current)return;lock.current=true;B(true);E(null);if(['request-code','restore','release','forget-device'].includes(path))C('');try{
   let r=await post('/api/academic-access/'+path,body);if(alive.current)D(r);
   while(r.busy&&alive.current){await new Promise(resolve=>setTimeout(resolve,1500));r=await get('/api/academic-access/status');if(alive.current)D(r)}
-  if(path==='forget-device'){T({saved:false});F(false);await school.refresh().catch(()=>{})}
+  if(path==='forget-device'){cancelAcademicRecovery('已清除登录信息，本次操作已取消；已保存成绩保留');T({saved:false});F(false);await school.refresh().catch(()=>{})}
   else if(r.connected){const saved=await get('/api/academic-access/device-state').catch(()=>null);if(alive.current)T(saved)}
   if(path==='code'&&r.connected)C('');
  }catch(e){if(alive.current)E(e)}finally{lock.current=false;if(alive.current)B(false)}};
