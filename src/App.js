@@ -1,3 +1,4 @@
+import AcademicRecoveryBoundary from "./components/AcademicRecoveryBoundary";
 import RecognitionScreen from './screens/RecognitionScreen';
 import RecognitionSyncScreen from './screens/RecognitionSyncScreen';
 import RecognitionPersonScreen from './screens/RecognitionPersonScreen';
@@ -69,9 +70,8 @@ function Screens({ initial, component }) {
     >
       <Stack.Screen
         name={initial}
-        component={component}
         options={{ headerShown: false }}
-      />
+      >{props=><AcademicRecoveryBoundary {...props}>{React.createElement(component,props)}</AcademicRecoveryBoundary>}</Stack.Screen>
       {[
         ["Overview", OverviewScreen, "学期总览"],
         ["ContentTemplates", ContentTemplatesScreen, "内容模板库"],
@@ -100,9 +100,8 @@ function Screens({ initial, component }) {
         <Stack.Screen
           key={name}
           name={name}
-          component={component}
           options={{ title, presentation: name === "AcademicScope" ? "modal" : "card" }}
-        />
+        >{props=><AcademicRecoveryBoundary {...props}>{React.createElement(component,props)}</AcademicRecoveryBoundary>}</Stack.Screen>
       ))}
     </Stack.Navigator>
   );

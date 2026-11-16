@@ -18,7 +18,7 @@ function moduleAt(
   const context = {
     exports,
     require: (n) =>
-      n.includes("secure-store")
+      n === "./academicRecovery" ? moduleAt("utils/academicRecovery.js") : n.includes("secure-store")
         ? {
             getItemAsync: async (k) => secure.get(k) || null,
             setItemAsync: async (k, v) => secure.set(k, v),

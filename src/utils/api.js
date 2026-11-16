@@ -1,3 +1,4 @@
+import {createAcademicRecovery} from "./academicRecovery";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as NativeSecureStore from "expo-secure-store";
 import { Platform } from "react-native";
@@ -38,6 +39,22 @@ export function onIdentityLost(fn) {
   };
 }
 let identityEpoch = 0;
+async function restoreAcademic(){
+ const current=await identity();let state;
+ try{state=await raw('POST','/api/academic-access/restore',{}, {token:current.token,timeout:90000})}
+ catch(e){if(e.code!=='ACADEMIC_BUSY')throw e;state=await raw('GET','/api/academic-access/status',undefined,{token:current.token})}
+ for(let i=0;state.busy&&i<60;i++){await new Promise(resolve=>setTimeout(resolve,1500));state=await raw('GET','/api/academic-access/status',undefined,{token:current.token})}
+ if(state.busy)throw new ApiError('教务连接仍在恢复，请稍后重试',409,'ACADEMIC_BUSY');
+ if(state.step==='failed')throw new ApiError(state.message||'教务暂时不可用，已保存成绩保留',503,state.failureCode||'ACADEMIC_UNAVAILABLE');
+ return state;
+}
+const academicRecovery=createAcademicRecovery({restore:restoreAcademic,getContext:async()=>{const s=await storedSession();return s.openid+':'+identityEpoch}});
+export const onAcademicRecovery=fn=>academicRecovery.subscribe(fn);
+export const completeAcademicRecovery=()=>academicRecovery.complete();
+export const cancelAcademicRecovery=message=>academicRecovery.cancel(message);
+export const hasAcademicRecovery=()=>academicRecovery.isPending();
+function canResumeAcademic(method,path){const route=path.split('?')[0];return route.startsWith('/api/academic-grades/')&&(method==='GET'||/^\/api\/academic-grades\/(sync|student\/refresh|roster\/refresh|managed\/refresh|profile|course|photos\/student|photos\/start|photo-exports\/start)$/.test(route));}
+
 async function storedSession() {
   const bundled = await SecureStore.getItemAsync(key("session"));
   if (bundled) {
@@ -186,10 +203,12 @@ export async function schoolSignIn(action,body={}) {
   return result;
 }
 export function switchSchoolAccount() {
+  cancelAcademicRecovery("已切换账号，本次教务操作已取消");
   identityEpoch++;
   identityListener(new ApiError("验证另一学校账号后切换，当前账号记录保留",401,"SCHOOL_SIGNIN_REQUIRED"));
 }
 export async function recoverIdentity(recoveryKey) {
+  cancelAcademicRecovery("正在找回账号，请重新发起教务操作");
   const normalized = recoveryKey.trim().toUpperCase();
   const data = await raw("POST", "/api/auth/recover", {
     recoveryKey: normalized,
@@ -205,9 +224,10 @@ export async function request(method, path, data, options = {}) {
     return await raw(method, path, data, {
       ...options,
       token: current.token,
-      timeout: (path.includes("/api/auth/") || path.endsWith("/managed/refresh")) ? 90000 : 30000,
+      timeout: options.timeout || (canResumeAcademic(method,path)&&!path.includes("/dashboard")&&!path.endsWith("/state")?140000:(path.includes("/api/auth/")?90000:30000)),
     });
   } catch (error) {
+    if(error.code==='ACADEMIC_AUTH_REQUIRED'&&!options.academicRetry&&canResumeAcademic(method,path))return academicRecovery.recover(()=>request(method,path,data,{...options,academicRetry:true}));
     if (
       error.status === 401 &&
       ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(error.code)
@@ -228,7 +248,8 @@ export async function request(method, path, data, options = {}) {
           ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code)
         )
           schoolListener(e);
-        else if (e.status === 401) identityListener(e);
+        else if (e.status === 401){cancelAcademicRecovery('App登录需要重新验证');identityListener(e)}
+        if(e.code==='ACADEMIC_AUTH_REQUIRED'&&!options.academicRetry&&canResumeAcademic(method,path))return academicRecovery.recover(()=>request(method,path,data,{...options,academicRetry:true}));
         throw e;
       }
     }

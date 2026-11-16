@@ -12,3 +12,31 @@ jobs:
       - run: node scripts/check-version.cjs
       - run: npm test
       - run: npx expo export --platform android --output-dir /tmp/android-export
+  academic-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build isolated academic preview
+        env:
+          EXPO_PUBLIC_UI_PREVIEW: '1'
+          EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:18766
+        run: npx expo export --platform web --max-workers 2 --output-dir /tmp/academic114-web
+      - name: Install pinned browser test tools
+        run: npm install --prefix /tmp/academic-e2e --no-audit --no-fund --ignore-scripts express@4.22.2 @playwright/test@1.65.0
+      - run: node /tmp/academic-e2e/node_modules/playwright/cli.js install chromium
+      - name: Verify recovery, cancellation and operation continuation
+        env:
+          ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
+          ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
+        run: node tests/academic-recovery-browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: academic-recovery-browser-proof
+          path: .qa/results/
+          if-no-files-found: ignore
+          retention-days: 7

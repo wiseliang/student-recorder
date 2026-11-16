@@ -10,9 +10,9 @@ const filters=[["all","全部成绩"],["failed","本次查询不及格成绩"],[
 export default function AcademicCourseScreen({navigation,route}){
  const key=route.params.cohortKey;
  const [options,V]=useState(null),[catalog,K]=useState([]),[term,T]=useState(""),[code,C]=useState(route.params?.courseCode||""),[managed,M]=useState(true),[filter,F]=useState("all"),[data,D]=useState(null),[offset,O]=useState(0),[error,E]=useState(null),[busy,B]=useState(false);
- const alive=useRef(false),lock=useRef(false);
- useFocusEffect(useCallback(()=>{alive.current=true;Promise.all([get(API+"/options"),get(API+"/catalog?cohortKey="+key)]).then(([o,c])=>{if(alive.current){V(o);K(c.courses);if(route.params?.termLabel){const selected=o.terms.find(t=>t.label===route.params.termLabel);if(selected)T(selected.value)}}}).catch(E);return()=>{alive.current=false}},[key]));
- const query=async()=>{if(lock.current)return;lock.current=true;B(true);E(null);D(null);O(0);try{const r=await post(API+"/course",{cohortKey:key,term,courseCode:code.trim(),managedOnly:managed,filter});if(alive.current)D(r)}catch(e){if(alive.current)E(e)}finally{lock.current=false;B(false)}};
+ const alive=useRef(false),lock=useRef(false),initializedKey=useRef(null);
+ useFocusEffect(useCallback(()=>{alive.current=true;Promise.all([get(API+"/options"),get(API+"/catalog?cohortKey="+key)]).then(([o,c])=>{if(alive.current){V(o);K(c.courses);if(route.params?.termLabel&&initializedKey.current!==key){initializedKey.current=key;const selected=o.terms.find(t=>t.label===route.params.termLabel);if(selected)T(selected.value)}}}).catch(E);return()=>{alive.current=false}},[key]));
+ const query=async()=>{if(lock.current)return;lock.current=true;B(true);E(null);O(0);try{const r=await post(API+"/course",{cohortKey:key,term,courseCode:code.trim(),managedOnly:managed,filter});if(alive.current)D(r)}catch(e){if(alive.current)E(e)}finally{lock.current=false;B(false)}};
  const termLabel=options?.terms.find(x=>x.value===term)?.label;
  const courses=catalog.filter(c=>c.semester===termLabel);
  const courseOptions=[...new Map(courses.map(c=>[c.code,{value:c.code,label:c.name+"（"+c.code+"）"}])).values()];
@@ -20,7 +20,7 @@ export default function AcademicCourseScreen({navigation,route}){
  return <Page>
   <Title>专业单科成绩</Title>
   <Body muted>默认查询我的学生，可切换到整个专业。课程无记录不算挂科，补考重修情况依据已同步历史。</Body>
-  <ErrorBox error={error}/>
+  <ErrorBox error={error}/>{busy&&<Body muted>正在读取学校最新成绩，原查询结果仍保留。</Body>}
   {!options&&<Button secondary title="连接教务" onPress={()=>navigation.navigate("AcademicAccess")}/>}
   <Card>
    <Dropdown label="学期" value={term} options={options?.terms||[]} returnValue disabled={busy} onChange={v=>{T(v);C("");clear()}}/>
