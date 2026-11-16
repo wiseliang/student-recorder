@@ -1,3 +1,4 @@
+import {useShanghaiToday,currentCutoffWeeks,currentDraftCutoffs,sameWeeks} from "../utils/recordDefaults";
 import { useFlowDraft } from "../utils/useFlowDraft";
 import { retainSelection } from "../utils/people";
 import React, { useEffect, useRef, useState } from "react";
@@ -84,11 +85,11 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     pendingReload = useRef(false),
     pendingAction = useRef(null),
     retryLoaded = useRef(false),
+    dateTouched = useRef(false),
+    weeksTouched = useRef(false),
     draftStep = useRef(0),
     draftKey = `draft.${school.accountKey || school.connectionId || "none"}.${worklog ? "worklog" : "academic"}.${entry}`,
-    today = new Date().toLocaleDateString("sv-SE", {
-      timeZone: "Asia/Shanghai",
-    });
+    today = useShanghaiToday(foreground);
   selectedRef.current = ids;
   weeksRef.current = weeks;
   useEffect(() => {
@@ -221,7 +222,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
     }
     P(p);
     S(2);
-    if (r.weeks) W(r.weeks);
+    if (r.weeks) { W(r.weeks); weeksRef.current = r.weeks; }
     if (r.studentIds) I(r.studentIds);
     C(r.content || "");
     CM(r.contentMode || "manual");
@@ -284,7 +285,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             draft.calendarStartDate === calendar.startDate) &&
           !route.params?.retryTaskUuid
         ) {
-          applyPlan({ request: draft });
+          applyPlan({ request: currentDraftCutoffs(draft, calendar, entry, today) });
           P(null);
           S(0);
           draftStep.current = draft.step === 1 ? 1 : 0;
@@ -307,13 +308,14 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
           selectionInitialized.current = true;
           I(prefill.studentIds);
           if (worklog) TG(String(prefill.targetCount || 1));
-          else W(prefill.weeks);
+          else { weeksTouched.current = true; W(prefill.weeks); weeksRef.current = prefill.weeks; }
           P(null);
           S(0);
           NT("总览仅带入补录范围，正在重新读取学校最新名单、次数和轮次。");
           await beginRead(prefill.weeks);
           return;
         }
+        let restoredPlan = false;
         const id = await flowPlan();
         if (id) {
           const p = await get("/api/task/plans/" + id);
@@ -324,14 +326,22 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
               : p.request?.scope === "academic" && p.request.entry === entry)
           ) {
             applyPlan(p);
+            restoredPlan = true;
           }
         }
         const scan = await cacheRead(scanKey);
         if (scan) {
           const s = await get(api + (worklog ? "/scans/" : "/rosters/") + scan);
           if (alive.current && (worklog || s.entry === entry)) {
-            applySnapshot(s);
-            if (!worklog && s.weeks) W(s.weeks);
+            // A saved roster belongs to its exact weeks; it cannot back a new cutoff.
+            if (!worklog && !restoredPlan && !sameWeeks(s.weeks, weeksRef.current)) {
+              draftStep.current = 0;
+              S(0);
+              await cacheWrite(scanKey, null);
+            } else {
+              applySnapshot(s);
+              if (!worklog && s.weeks) { W(s.weeks); weeksRef.current = s.weeks; }
+            }
           }
         }
       } catch (e) {
@@ -350,6 +360,23 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
       alive.current = false;
     };
   }, [school.loading, school.connectionId]);
+  useEffect(() => {
+    if (hydrating || !foreground || !calendar || plan || step === 2 || route.params?.retryTaskUuid) return;
+    if (!dateTouched.current) T(today);
+    if (!worklog && !weeksTouched.current && snapshot?.state !== "scanning") {
+      const next = currentCutoffWeeks(weeksRef.current, calendar, entry);
+      if (!sameWeeks(next, weeksRef.current)) {
+        W(next);
+        weeksRef.current = next;
+        Z(null);
+        latest.current = null;
+        draftStep.current = 0;
+        S(0);
+        void cacheWrite(scanKey, null).catch(() => {});
+        NT("已默认选到本周，请重新读取对应周次的名单与次数。");
+      }
+    }
+  }, [hydrating, foreground, today, calendar?.week, calendar?.startDate, plan?.id, step, snapshot?.state]);
   useEffect(() => {
     if (!foreground) return;
     const scanning = snapshot?.state === "scanning",
@@ -620,6 +647,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                       title="选择周次"
                       action="选到本周"
                       onPress={() => {
+                        weeksTouched.current = false;
                         W(
                           Array.from(
                             { length: calendar?.week || 0 },
@@ -643,6 +671,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                           accessibilityState={{ checked: weeks.includes(w) }}
                           disabled={snapshot?.state === "scanning"}
                           onPress={() => {
+                            weeksTouched.current = true;
                             W((old) =>
                               old.includes(w)
                                 ? old.filter((x) => x !== w)
@@ -765,6 +794,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
             <>
               <Card>
                 <SectionHeader title="自动安排时间" />
+                <Body muted>截止默认当天或当周，可在本次录入中手动调整；已生成预览及失败重试保留原范围。</Body>
                 <Body muted>
                   {worklog
                     ? "在本学期可用日期之间尽量均匀分布。"
@@ -783,7 +813,7 @@ export default function RecordFlow({ route, navigation, worklog = false }) {
                     <DateField
                       label="截止日期"
                       value={to}
-                      onChange={T}
+                      onChange={value => { dateTouched.current = true; T(value); }}
                       minDate={from}
                       maxDate={today}
                     />
