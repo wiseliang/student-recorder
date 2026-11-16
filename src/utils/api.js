@@ -40,10 +40,15 @@ export function onIdentityLost(fn) {
 }
 let identityEpoch = 0;
 async function restoreAcademic(){
- const current=await identity();let state;
- try{state=await raw('POST','/api/academic-access/restore',{}, {token:current.token,timeout:90000})}
- catch(e){if(e.code!=='ACADEMIC_BUSY')throw e;state=await raw('GET','/api/academic-access/status',undefined,{token:current.token})}
- for(let i=0;state.busy&&i<60;i++){await new Promise(resolve=>setTimeout(resolve,1500));state=await raw('GET','/api/academic-access/status',undefined,{token:current.token})}
+ let current=await identity();
+ const call=async(method,path,data,timeout=30000)=>{
+  try{return await raw(method,path,data,{token:current.token,timeout})}
+  catch(e){if(e.status!==401||e.code!=='AUTH_REQUIRED')throw e;try{await refreshIdentity();current=await identity()}catch(expired){if(expired.status===401)identityListener(expired);throw expired}return raw(method,path,data,{token:current.token,timeout})}
+ };
+ let state;
+ try{state=await call('POST','/api/academic-access/restore',{},90000)}
+ catch(e){if(e.code!=='ACADEMIC_BUSY')throw e;state=await call('GET','/api/academic-access/status')}
+ for(let i=0;state.busy&&i<60;i++){await new Promise(resolve=>setTimeout(resolve,1500));state=await call('GET','/api/academic-access/status')}
  if(state.busy)throw new ApiError('教务连接仍在恢复，请稍后重试',409,'ACADEMIC_BUSY');
  if(state.step==='failed')throw new ApiError(state.message||'教务暂时不可用，已保存成绩保留',503,state.failureCode||'ACADEMIC_UNAVAILABLE');
  return state;
