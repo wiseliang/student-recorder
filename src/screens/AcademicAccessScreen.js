@@ -19,12 +19,12 @@ export default function AcademicAccessScreen({navigation,route}){
   void poll();void get('/api/academic-access/device-state').then(r=>{if(alive.current)T(r)}).catch(()=>{});
   return()=>{alive.current=false;clearTimeout(timer);if(!completed.current&&hasAcademicRecovery())cancelAcademicRecovery()};
  },[]));
- const run=async(path,body={})=>{if(lock.current)return;lock.current=true;B(true);E(null);try{
+ const run=async(path,body={})=>{if(lock.current)return;lock.current=true;B(true);E(null);if(['request-code','restore','release','forget-device'].includes(path))C('');try{
   let r=await post('/api/academic-access/'+path,body);if(alive.current)D(r);
   while(r.busy&&alive.current){await new Promise(resolve=>setTimeout(resolve,1500));r=await get('/api/academic-access/status');if(alive.current)D(r)}
   if(path==='forget-device'){T({saved:false});F(false);await school.refresh().catch(()=>{})}
   else if(r.connected){const saved=await get('/api/academic-access/device-state').catch(()=>null);if(alive.current)T(saved)}
-  C('');
+  if(path==='code'&&r.connected)C('');
  }catch(e){if(alive.current)E(e)}finally{lock.current=false;if(alive.current)B(false)}};
  const cancel=()=>{completed.current=true;cancelAcademicRecovery();if(navigation.canGoBack())navigation.goBack();else navigation.navigate('AcademicGrades')};
  return <Page><Title>教务连接</Title><Body muted>优先恢复已保存的登录状态。学校要求验证时，再获取本次HIT APP验证码；已保存成绩仍可查看。</Body><ErrorBox error={error}/>
