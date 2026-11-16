@@ -23,6 +23,12 @@ buildscript {
 
 apply plugin: "com.facebook.react.rootproject"
 
+// Always apply the pinned native fix, including builds after npm ci --ignore-scripts.
+exec {
+    workingDir rootDir.parentFile
+    commandLine 'node', 'scripts/patch-camera-permissions.cjs'
+}
+
 allprojects {
     repositories {
         maven {
