@@ -33,6 +33,11 @@ jobs:
           ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
           ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
         run: node tests/academic-recovery-browser.cjs
+      - name: Verify current date and week defaults
+        env:
+          ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
+          ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
+        run: node tests/record-defaults-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
