@@ -22,6 +22,7 @@ export default function AcademicGradesScreen({navigation}){
   <View style={{gap:6}}><Title>学业管理</Title><Body muted>先看所带学生，及时跟进未通过课程。</Body></View>
   <ErrorBox error={error}/>
   {data&&<>
+   <Card><Body>本页显示已保存成绩，进入页面不会自动更新学校成绩。</Body><Body muted>最早更新：{dateLabel(data.freshness?.oldestCheckedAt)} · 最近更新：{dateLabel(data.freshness?.newestCheckedAt)}</Body><Body muted>{data.connection.connected?'教务已连接，可更新学校成绩。':'教务当前未连接，已保存成绩仍可查看；更新时会先尝试恢复，必要时引导验证。'}</Body><Button secondary title="查看或恢复教务连接" disabled={busy} onPress={()=>navigation.navigate('AcademicAccess')}/></Card>
    <Dropdown label="统计学期" value={term||data.term||''} returnValue options={data.terms.map(x=>({value:x,label:x+(x===data.defaultTerm?(data.calendarVerified?'（学校当前学期）':'（默认学期，待校历核验）'):'')}))} onChange={v=>{T(v);current.current=v;void run(load)}}/>
    <View style={{backgroundColor:colors.surface,borderRadius:16,padding:20,gap:10}}>
     <View style={{flexDirection:'row',alignItems:'baseline',gap:8}}><Text style={{fontSize:36,fontWeight:'600',color:colors.ink}}>{c.total}</Text><Body>名所带学生</Body></View>
@@ -34,8 +35,9 @@ export default function AcademicGradesScreen({navigation}){
     <Text style={{fontSize:30,fontWeight:'600',color:alert?colors.danger:colors.ink}}>{value??'—'}</Text><Text style={{fontSize:15,color:colors.ink}}>{label}</Text>
    </Pressable>)}</View>
    <Body muted>数字只统计已读取记录；待补考核对含往期欠课，旷考不进入补考核对，其他资格需以学校安排核实。</Body>
-   <Button title={active?'正在同步所选范围…':'同步我的学生成绩'} loading={busy} disabled={active} onPress={()=>run(()=>post(API+'/sync',{range:'managed'}))}/>
+   <Button title={active?'正在同步所选范围…':'更新所带学生的学校成绩'} loading={busy} disabled={active} onPress={()=>run(()=>post(API+'/sync',{range:'managed'}))}/>
    {job&&<View style={{gap:5}}><Body muted>{({pending:'准备同步',running:'正在同步',pause_requested:'准备暂停',paused:'已暂停',partial:'部分完成',completed:'同步完成',failed:'同步中断'})[job.status]} · 已保存 {p.success||0}/{p.total||0} 人{p.range==='professional'?'（全专业任务）':''}</Body>{!!p.message&&<Body muted>{p.message}</Body>}
+    {job.status==='paused'&&p.errorCode==='ACADEMIC_AUTH_REQUIRED'&&<Button title="验证教务并继续本次更新" disabled={busy} onPress={()=>run(()=>post(API+'/sync',{resumeId:job.id}))}/>}
     {active?<Button secondary title="暂停同步" disabled={busy} onPress={()=>run(()=>post(API+'/sync/'+job.id+'/pause'))}/>:['paused','partial','failed'].includes(job.status)&&p.range==='managed'&&<Button secondary title="继续同步未完成学生" disabled={busy} onPress={()=>run(()=>post(API+'/sync',{resumeId:job.id}))}/>}
    </View>}
    <Card><Body>当前挂科学分合计 {count.failedCredits??'—'} 分</Body><Body muted>{data.failedCreditNote||'已通过不累计；重修学分变化取首次挂科学分。'}</Body><Button secondary title="查看挂科学分排名" onPress={()=>open('credits')}/></Card>
@@ -47,7 +49,7 @@ export default function AcademicGradesScreen({navigation}){
     <RowLink title="全专业查询" detail="按专业查学生和单科成绩" icon="search-outline" onPress={()=>navigation.navigate('AcademicStudents',{range:'professional',term:data.term})}/>
     <RowLink title="名单、范围与连接" detail="学工匹配、手动调整、教务连接" icon="settings-outline" last onPress={()=>navigation.navigate('AcademicManage')}/>
    </View>
-   <Button secondary title="刷新看板" disabled={busy} onPress={()=>run(load)}/>
+   <Button secondary title="刷新统计（不更新学校成绩）" disabled={busy} onPress={()=>run(load)}/>
   </>}
  </Page>;
 }
