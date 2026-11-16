@@ -38,6 +38,11 @@ jobs:
           ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
           ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
         run: node tests/record-defaults-browser.cjs
+      - name: Verify course review outcomes and revocation
+        env:
+          ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
+          ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
+        run: node tests/course-reviews-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
