@@ -3,13 +3,13 @@ import {Image,View,AppState,Pressable,Modal} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {Page,Card,Title,Body,Button,Choice,ErrorBox,Pill,SectionHeader} from '../components/ui';
 import {post,identityContext} from '../utils/api';
-import {readMemory,writeMemory,eventId} from '../utils/memoryStore';
+import {readMemory,writeMemory,eventId,clearMemoryPack} from '../utils/memoryStore';
 import {MEMORY_LEVELS,selectMemoryCards,restoreMemoryRound,applyMemoryEvent} from '../utils/memoryCore';
 const kinds={name:'看照片记姓名',class:'看照片记班级',committee:'班委情况',political:'政治面貌',focus:'重点关注群体',reason:'关注原因',situation:'学情',other:'其他情况'};
 const empty=()=>({ratings:{},queue:[],round:null,serverRevision:0,dirty:false});
 export default function StudentMemoryScreen({route,navigation}){
  const {projectId,accountKey,title}=route.params,base='/api/materials/projects/'+projectId;
- const [pack,P]=useState(null),[local,L]=useState(empty),[busy,B]=useState(false),[error,E]=useState(null),[notice,N]=useState(''),[filters,F]=useState({className:'',kind:'',dueOnly:false,random:false}),[showFilters,V]=useState(false),[cloud,C]=useState(null),[zoom,Z]=useState(false);
+ const [pack,P]=useState(null),[local,L]=useState(empty),[busy,B]=useState(false),[error,E]=useState(null),[notice,N]=useState(''),[filters,F]=useState({className:'',kind:'',dueOnly:false,random:false}),[showFilters,V]=useState(false),[cloud,C]=useState(null),[zoom,Z]=useState(false),[clearing,A]=useState(false);
  const ref=useRef(empty()),packRef=useRef(null),alive=useRef(false),locked=useRef(false),owner=useRef(null),scroll=useRef(null);
  const sameOwner=async()=>{if(await identityContext()!==owner.current)throw Error('账号已切换，请从当前账号重新打开记忆资料')};
  const save=async value=>{await sameOwner();await writeMemory(accountKey,projectId,'state',value);ref.current=value;if(alive.current)L(value)};
@@ -47,6 +47,7 @@ export default function StudentMemoryScreen({route,navigation}){
  {showFilters&&<Card><SectionHeader title="班级"/><Choice label="全部班级" selected={!filters.className} onPress={()=>F(f=>({...f,className:''}))}/>{classes.map(c=><Choice key={c} label={c} selected={filters.className===c} onPress={()=>F(f=>({...f,className:c}))}/>)}<SectionHeader title="练习内容"/><Choice label="全部内容" selected={!filters.kind} onPress={()=>F(f=>({...f,kind:''}))}/>{Object.entries(kinds).filter(([k])=>pack.cards.some(c=>c.kind===k)).map(([k,label])=><Choice key={k} label={label} selected={filters.kind===k} onPress={()=>F(f=>({...f,kind:k}))}/>)}<Choice label="只练新卡或已到复习时间的卡" selected={filters.dueOnly} onPress={()=>F(f=>({...f,dueOnly:!f.dueOnly}))}/><Choice label="随机顺序" selected={filters.random} onPress={()=>F(f=>({...f,random:!f.random}))}/><Button title="按当前设置开始新一轮" disabled={busy} onPress={start}/><Body muted>开始新一轮会替换当前轮次，掌握记录继续保留。</Body></Card>}
  {r&&<Button title="暂停并保存本轮" secondary disabled={busy} onPress={()=>run(async()=>{await save({...ref.current});try{await flush();await uploadProgress()}catch{N('已保存到本机，联网后点击同步即可上传')}navigation.goBack()})}/>}</>}
   <Card><Body>{pack?pack.cards.length+'张记忆卡 · 待同步记录 '+local.queue.length+'条':'首次使用请联网下载资料'}</Body>{pack&&<Body muted>下载于 {new Date(pack.downloadedAt).toLocaleDateString()} · 离线可用至 {new Date(pack.expiresAt).toLocaleDateString()}</Body>}<Button title="同步最新资料与复习记录" secondary loading={busy} onPress={()=>run(sync)}/></Card>
+ {pack&&<Button secondary title={clearing?"确认清除本机照片与记忆卡（评级队列保留）":"清除本机下载资料"} disabled={busy} onPress={()=>{if(!clearing){A(true);return}void run(async()=>{await clearMemoryPack(accountKey,projectId);packRef.current=null;P(null);A(false);N("本机照片与卡片已清除，待同步评级继续加密保留")})}}/>}
  <Modal visible={zoom&&!!image} animationType="fade" onRequestClose={()=>Z(false)}><View style={{flex:1,backgroundColor:"#172C42",padding:24,paddingTop:48,gap:20}}>{image&&<Image accessibilityLabel="放大的学生照片" source={{uri:"data:"+image.mime+";base64,"+image.base64}} resizeMode="contain" style={{flex:1,width:"100%"}}/>}<Button title="关闭照片放大" onPress={()=>Z(false)}/></View></Modal>
  </Page>;
 }
