@@ -1,3 +1,6 @@
+import MaterialsScreen from './screens/MaterialsScreen';
+import MaterialsProjectScreen from './screens/MaterialsProjectScreen';
+import StudentMemoryScreen from './screens/StudentMemoryScreen';
 import AcademicRecoveryBoundary from "./components/AcademicRecoveryBoundary";
 import RecognitionScreen from './screens/RecognitionScreen';
 import RecognitionSyncScreen from './screens/RecognitionSyncScreen';
@@ -75,6 +78,9 @@ function Screens({ initial, component }) {
       {[
         ["Overview", OverviewScreen, "学期总览"],
         ["ContentTemplates", ContentTemplatesScreen, "内容模板库"],
+        ["Materials", MaterialsScreen, "辨识材料与记忆"],
+        ["MaterialsProject", MaterialsProjectScreen, "辨识资料"],
+        ["StudentMemory", StudentMemoryScreen, "辨识记忆"],
         ["AcademicAccess", AcademicAccessScreen, "教务连接"],
         ["AcademicGrades", AcademicGradesScreen, "学业管理"],
         ["AcademicStudents", AcademicStudentsScreen, "学生与风险名单"],
