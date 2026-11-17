@@ -39,6 +39,7 @@ export function onIdentityLost(fn) {
   };
 }
 let identityEpoch = 0;
+export async function identityContext(){const epoch=identityEpoch,{openid}=await identity();return openid+":"+epoch;}
 async function restoreAcademic(){
  let current=await identity();
  const call=async(method,path,data,timeout=30000)=>{

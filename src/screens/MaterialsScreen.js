@@ -1,11 +1,11 @@
 import React,{useState,useCallback,useRef} from 'react';
 import {useFocusEffect} from '@react-navigation/native';
 import {Page,Title,Body,Card,Button,Field,ErrorBox,RowLink} from '../components/ui';
-import {get,post} from '../utils/api';
+import {get,post,identityContext} from '../utils/api';
 import {readMemory,writeMemory} from '../utils/memoryStore';
 export default function MaterialsScreen({navigation}){
  const [data,D]=useState(null),[title,T]=useState('学生辨识材料'),[counselor,C]=useState(''),[creating,V]=useState(false),[busy,B]=useState(false),[error,E]=useState(null);const alive=useRef(false),locked=useRef(false);
- const load=async()=>{const d=await get('/api/materials');await writeMemory('','catalog','catalog',d);if(alive.current)D(d);return d};
+ const load=async()=>{const context=await identityContext(),d=await get('/api/materials');if(context!==await identityContext())throw Error('账号已切换，请重新打开项目列表');await writeMemory('','catalog','catalog',d);if(alive.current)D(d);return d};
  useFocusEffect(useCallback(()=>{alive.current=true;void (async()=>{try{const cached=await readMemory('','catalog','catalog');if(alive.current&&cached)D(cached)}catch(e){if(alive.current)E(e)}try{await load();if(alive.current)E(null)}catch(e){if(alive.current)E(e)}})();return()=>{alive.current=false}},[]));
  const create=async()=>{if(locked.current)return;locked.current=true;B(true);E(null);try{const p=await post('/api/materials/projects',{title,counselor});await load();V(false);navigation.navigate('MaterialsProject',{projectId:p.id})}catch(e){E(e)}finally{B(false);locked.current=false}};
  return <Page><Title>辨识材料与记忆</Title><Body muted>整理本人所带学生，制作辨识PPT，在这里直接背诵。</Body><ErrorBox error={error}/>
