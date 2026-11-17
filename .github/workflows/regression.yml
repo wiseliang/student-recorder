@@ -20,6 +20,7 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
       - name: Build isolated academic preview
         env:
           EXPO_PUBLIC_UI_PREVIEW: '1'
@@ -43,6 +44,11 @@ jobs:
           ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
           ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
         run: node tests/course-reviews-browser.cjs
+      - name: Verify materials and offline embedded memory
+        env:
+          ACADEMIC_E2E_DEPS: /tmp/academic-e2e/node_modules
+          ACADEMIC_E2E_WEB_ROOT: /tmp/academic114-web
+        run: node tests/materials-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
