@@ -1,5 +1,5 @@
 import React,{useState,useRef,useCallback} from 'react';
-import {Image,View,AppState} from 'react-native';
+import {Image,View,AppState,Pressable,Modal} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {Page,Card,Title,Body,Button,Choice,ErrorBox,Pill,SectionHeader} from '../components/ui';
 import {post,identityContext} from '../utils/api';
@@ -9,7 +9,7 @@ const kinds={name:'看照片记姓名',class:'看照片记班级',committee:'班
 const empty=()=>({ratings:{},queue:[],round:null,serverRevision:0,dirty:false});
 export default function StudentMemoryScreen({route,navigation}){
  const {projectId,accountKey,title}=route.params,base='/api/materials/projects/'+projectId;
- const [pack,P]=useState(null),[local,L]=useState(empty),[busy,B]=useState(false),[error,E]=useState(null),[notice,N]=useState(''),[filters,F]=useState({className:'',kind:'',dueOnly:false,random:false}),[showFilters,V]=useState(false),[cloud,C]=useState(null);
+ const [pack,P]=useState(null),[local,L]=useState(empty),[busy,B]=useState(false),[error,E]=useState(null),[notice,N]=useState(''),[filters,F]=useState({className:'',kind:'',dueOnly:false,random:false}),[showFilters,V]=useState(false),[cloud,C]=useState(null),[zoom,Z]=useState(false);
  const ref=useRef(empty()),packRef=useRef(null),alive=useRef(false),locked=useRef(false),owner=useRef(null),scroll=useRef(null);
  const sameOwner=async()=>{if(await identityContext()!==owner.current)throw Error('账号已切换，请从当前账号重新打开记忆资料')};
  const save=async value=>{await sameOwner();await writeMemory(accountKey,projectId,'state',value);ref.current=value;if(alive.current)L(value)};
@@ -40,12 +40,13 @@ export default function StudentMemoryScreen({route,navigation}){
  {pack&&!expired&&<>
  {!r&&<Button title="开始背诵全部内容" disabled={busy} onPress={start}/>}
  {r?.finished&&<Card><Title>本轮已完成</Title><Body>已练习{r.ids.length}张。自评用于安排复习，不代表考试正确率。</Body><Button title="开始新一轮" disabled={busy} onPress={start}/><Button title="回看本轮最后一张" secondary disabled={busy} onPress={()=>run(()=>move(0))}/></Card>}
- {card&&!r.finished&&<Card><View style={{flexDirection:'row',justifyContent:'space-between'}}><Pill>{kinds[card.kind]||'辨识记忆'}</Pill><Body muted>{r.index+1} / {r.ids.length}</Body></View><Body>{card.question}</Body>{image&&<Image accessibilityLabel="待回忆的学生照片" source={{uri:'data:'+image.mime+';base64,'+image.base64}} resizeMode="contain" style={{width:'100%',height:270,backgroundColor:'#F7FAFE',borderRadius:12}}/>}
- {!r.revealed?<Button title="回忆后展开答案" disabled={busy} onPress={()=>run(()=>changeRound({revealed:true}))}/>:<View style={{gap:16}}><Body style={{fontSize:22,lineHeight:32,fontWeight:'600'}}>{card.answer.join('\n')}</Body><Body muted>按本次回忆情况选择：不会约10分钟后、模糊约1天后、熟练约7天后复习。</Body>{Object.entries(MEMORY_LEVELS).map(([level,label])=><Button key={level} title={label} secondary={level!=='known'} disabled={busy} onPress={()=>rate(level)}/>)}</View>}
+ {card&&!r.finished&&<Card><View style={{flexDirection:'row',justifyContent:'space-between'}}><Pill>{kinds[card.kind]||'辨识记忆'}</Pill><Body muted>{r.index+1} / {r.ids.length}</Body></View><Body>{card.question}</Body>{image&&<Pressable accessibilityRole="button" accessibilityLabel="放大学生照片" onPress={()=>Z(true)}><Image accessibilityLabel="待回忆的学生照片" source={{uri:'data:'+image.mime+';base64,'+image.base64}} resizeMode="contain" style={{width:'100%',height:270,backgroundColor:'#F7FAFE',borderRadius:12}}/></Pressable>}
+ {!r.revealed?<Button title="回忆后展开答案" disabled={busy} onPress={()=>run(()=>changeRound({revealed:true}))}/>:<View style={{gap:16}}><Body style={{fontSize:22,lineHeight:32,fontWeight:'600'}}>{card.answer.join('\n')}</Body><Button title="收起答案再回忆" secondary disabled={busy} onPress={()=>run(()=>changeRound({revealed:false}))}/><Body muted>按本次回忆情况选择：不会约10分钟后、模糊约1天后、熟练约7天后复习。</Body>{Object.entries(MEMORY_LEVELS).map(([level,label])=><Button key={level} title={label} secondary={level!=='known'} disabled={busy} onPress={()=>rate(level)}/>)}</View>}
  <View style={{flexDirection:'row',gap:12}}><Button title="上一张" secondary disabled={busy||r.index===0} onPress={()=>run(()=>move(-1))}/><Button title="跳过这一张" secondary disabled={busy||r.index===r.ids.length-1} onPress={()=>run(()=>move(1))}/></View></Card>}
  <Button secondary title={showFilters?'收起练习设置':'选择班级与练习内容'} onPress={()=>V(!showFilters)}/>
  {showFilters&&<Card><SectionHeader title="班级"/><Choice label="全部班级" selected={!filters.className} onPress={()=>F(f=>({...f,className:''}))}/>{classes.map(c=><Choice key={c} label={c} selected={filters.className===c} onPress={()=>F(f=>({...f,className:c}))}/>)}<SectionHeader title="练习内容"/><Choice label="全部内容" selected={!filters.kind} onPress={()=>F(f=>({...f,kind:''}))}/>{Object.entries(kinds).filter(([k])=>pack.cards.some(c=>c.kind===k)).map(([k,label])=><Choice key={k} label={label} selected={filters.kind===k} onPress={()=>F(f=>({...f,kind:k}))}/>)}<Choice label="只练新卡或已到复习时间的卡" selected={filters.dueOnly} onPress={()=>F(f=>({...f,dueOnly:!f.dueOnly}))}/><Choice label="随机顺序" selected={filters.random} onPress={()=>F(f=>({...f,random:!f.random}))}/><Button title="按当前设置开始新一轮" disabled={busy} onPress={start}/><Body muted>开始新一轮会替换当前轮次，掌握记录继续保留。</Body></Card>}
  {r&&<Button title="暂停并保存本轮" secondary disabled={busy} onPress={()=>run(async()=>{await save({...ref.current});try{await flush();await uploadProgress()}catch{N('已保存到本机，联网后点击同步即可上传')}navigation.goBack()})}/>}</>}
   <Card><Body>{pack?pack.cards.length+'张记忆卡 · 待同步记录 '+local.queue.length+'条':'首次使用请联网下载资料'}</Body>{pack&&<Body muted>下载于 {new Date(pack.downloadedAt).toLocaleDateString()} · 离线可用至 {new Date(pack.expiresAt).toLocaleDateString()}</Body>}<Button title="同步最新资料与复习记录" secondary loading={busy} onPress={()=>run(sync)}/></Card>
+ <Modal visible={zoom&&!!image} animationType="fade" onRequestClose={()=>Z(false)}><View style={{flex:1,backgroundColor:"#172C42",padding:24,paddingTop:48,gap:20}}>{image&&<Image accessibilityLabel="放大的学生照片" source={{uri:"data:"+image.mime+";base64,"+image.base64}} resizeMode="contain" style={{flex:1,width:"100%"}}/>}<Button title="关闭照片放大" onPress={()=>Z(false)}/></View></Modal>
  </Page>;
 }
