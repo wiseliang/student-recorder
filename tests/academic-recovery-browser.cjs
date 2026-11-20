@@ -9,7 +9,8 @@ const deps=process.env.ACADEMIC_E2E_DEPS||require('path').resolve(__dirname,'../
  app.post('/api/academic-access/restore',(req,res)=>{restores++;if(tokenExpired){tokenExpired=false;return res.status(401).json({code:'AUTH_REQUIRED',error:'token expired'})}if(mode==='network')return res.status(202).json({step:'failed',connected:false,busy:false,failureCode:'ACADEMIC_UNAVAILABLE',message:'教务暂时不可用，已保存成绩保留'});if(mode==='silent'){connected=true;deviceSaved=true}res.status(202).json(connection())});
  app.post('/api/academic-access/request-code',(req,res)=>{sms++;res.status(202).json(connection())});app.post('/api/academic-access/code',(req,res)=>{assert.equal(req.body.code,'112233');connected=true;deviceSaved=true;res.status(202).json(connection())});
  app.post('/api/academic-access/release',(req,res)=>{connected=false;res.json(connection())});app.post('/api/academic-access/forget-device',(req,res)=>{forgot++;connected=false;deviceSaved=false;res.json({cleared:true,message:'已清除长期登录信息'})});
- let directStarts=0;
+ let directStarts=0,loginReleases=0;
+ app.post('/api/auth/release',(_req,res)=>{loginReleases++;res.json({success:true})});
  app.get('/api/auth/credential',(_req,res)=>res.json({hasCredential:false}));
  app.post('/api/auth/start-login',(req,res)=>{
   assert.equal(req.body.studentId,'synthetic-existing-account');
@@ -43,6 +44,7 @@ const deps=process.env.ACADEMIC_E2E_DEPS||require('path').resolve(__dirname,'../
  const restored=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('recorder.http___127.0.0.1_18766.session')));
  assert.equal(restored.openid,'original-teacher');
  assert.equal(directStarts,1);
+ assert.equal(loginReleases,0,'leaving the verified screen must keep the new school connection');
  assert.deepEqual(errors,[]);const proof={passed:true,checks:['缓存查看不触发更新或认证','刷新统计不更新学校成绩','失效后自动恢复并引导验证','后台不主动发送验证码','取消后保留数据且不提交','验证码由用户明确获取','验证后回原页并续接一次','静默恢复成功免验证续接','网络故障不当成掉线','普通断开保留长期状态','明确清除长期登录信息','清除时取消待续接操作','恢复途中App令牌过期自动续期'],smsRequests:sms,committedUpdates:commits,errors};fs.writeFileSync('.qa/results/v114_自动恢复与验证续接浏览器证明.json',JSON.stringify(proof,null,2));console.log('教务自动恢复与续接13项浏览器流程通过。');
  }catch(e){console.error(e.stack);throw e}finally{await browser?.close();await new Promise(r=>server.close(r))}
 })().catch(()=>process.exitCode=1);
