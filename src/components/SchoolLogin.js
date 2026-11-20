@@ -63,10 +63,15 @@ export default function SchoolLogin({ onReady, force = false }) {
       const result = await fn();
       if (!alive.current) return;
       if (result.identity) {
-        await acceptConnectedIdentity(result.identity, context);
+        // Saving the new identity remounts the navigation tree. Mark this
+        // verification complete before unmount cleanup can release a session.
         ready.current = true;
-        P("");
-        C("");
+        try {
+          await acceptConnectedIdentity(result.identity, context);
+        } catch (error) {
+          ready.current = false;
+          throw error;
+        }
         return;
       }
       await accept(result);
