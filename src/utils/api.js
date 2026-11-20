@@ -208,6 +208,21 @@ export async function schoolSignIn(action,body={}) {
   }
   return result;
 }
+let identityChanged = () => {};
+export function onIdentityChanged(listener) {
+  identityChanged = listener;
+  return () => { identityChanged = () => {}; };
+}
+export async function acceptConnectedIdentity(data, expectedContext) {
+  if (await identityContext() !== expectedContext)
+    throw new ApiError("登录账号已变化，请重新打开学校账号页面", 409, "IDENTITY_CHANGED");
+  identityEpoch++;
+  await refreshFlight?.catch(() => {});
+  await saveIdentity(data);
+  cancelAcademicRecovery("已登录学校账号，请重新发起教务操作");
+  await clearPendingRefresh().catch(() => {});
+  identityChanged();
+}
 export function switchSchoolAccount() {
   cancelAcademicRecovery("已切换账号，本次教务操作已取消");
   identityEpoch++;

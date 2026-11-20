@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Image, Text } from "react-native";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { get, post } from "../utils/api";
+import { get, post, identityContext, acceptConnectedIdentity } from "../utils/api";
 import { Card, Body, Button, Field, Choice, ErrorBox } from "./ui";
 export default function SchoolLogin({ onReady, force = false }) {
   const [step, S] = useState("loading"),
@@ -59,7 +59,17 @@ export default function SchoolLogin({ onReady, force = false }) {
     B(true);
     E(null);
     try {
-      await accept(await fn());
+      const context = await identityContext();
+      const result = await fn();
+      if (!alive.current) return;
+      if (result.identity) {
+        await acceptConnectedIdentity(result.identity, context);
+        ready.current = true;
+        P("");
+        C("");
+        return;
+      }
+      await accept(result);
     } catch (e) {
       if (alive.current) {
         E(e);
@@ -194,18 +204,20 @@ export default function SchoolLogin({ onReady, force = false }) {
             onPress={() => R(!remember)}
           />
           <Button
-            title="验证账号密码"
+            title="验证并登录学校账号"
             loading={busy}
             disabled={!id.trim() || !password}
-            onPress={() =>
-              run(() =>
+            onPress={() => {
+              V(false);
+              void run(() =>
                 post("/api/auth/start-login", {
                   studentId: id.trim(),
                   password,
                   remember,
+                  signInExisting: true,
                 }),
-              )
-            }
+              );
+            }}
           />
           {saved && (
             <Button

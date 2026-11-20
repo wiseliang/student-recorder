@@ -45,6 +45,7 @@ import {
   recoverIdentity,
   getRecoveryKey,
   onIdentityLost,
+  onIdentityChanged,
 } from "./utils/api";
 import {
   Page,
@@ -121,7 +122,8 @@ function Root() {
     [busy, B] = useState(false),
     [error, E] = useState(null),
     [code, C] = useState(""),
-    [recovery, V] = useState(false);
+    [recovery, V] = useState(false),
+    [identityGeneration, nextIdentityGeneration] = useState(0);
   const init = async () => {
     B(true);
     E(null);
@@ -136,12 +138,14 @@ function Root() {
   };
   useEffect(() => {
     init();
-    return onIdentityLost((e) => {
+    const stopChanged = onIdentityChanged(() => nextIdentityGeneration(n => n + 1));
+    const stopLost = onIdentityLost((e) => {
       R(false);
       E(e);
     });
+    return () => { stopChanged(); stopLost(); };
   }, []);
-  useEffect(()=>{if(ready)void post("/api/recognition/check").catch(()=>{});},[ready]);
+  useEffect(()=>{if(ready)void post("/api/recognition/check").catch(()=>{});},[ready,identityGeneration]);
   if (!ready)
     return (
       <Page contentStyle={{ paddingTop: 48 }}>
@@ -192,7 +196,7 @@ function Root() {
       </Page>
     );
   return (
-    <SchoolProvider>
+    <SchoolProvider key={identityGeneration}>
       <NavigationContainer>
         <Tab.Navigator
           screenOptions={{
