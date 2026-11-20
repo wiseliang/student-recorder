@@ -9,6 +9,18 @@ const deps=process.env.ACADEMIC_E2E_DEPS||require('path').resolve(__dirname,'../
  app.post('/api/academic-access/restore',(req,res)=>{restores++;if(tokenExpired){tokenExpired=false;return res.status(401).json({code:'AUTH_REQUIRED',error:'token expired'})}if(mode==='network')return res.status(202).json({step:'failed',connected:false,busy:false,failureCode:'ACADEMIC_UNAVAILABLE',message:'教务暂时不可用，已保存成绩保留'});if(mode==='silent'){connected=true;deviceSaved=true}res.status(202).json(connection())});
  app.post('/api/academic-access/request-code',(req,res)=>{sms++;res.status(202).json(connection())});app.post('/api/academic-access/code',(req,res)=>{assert.equal(req.body.code,'112233');connected=true;deviceSaved=true;res.status(202).json(connection())});
  app.post('/api/academic-access/release',(req,res)=>{connected=false;res.json(connection())});app.post('/api/academic-access/forget-device',(req,res)=>{forgot++;connected=false;deviceSaved=false;res.json({cleared:true,message:'已清除长期登录信息'})});
+ let directStarts=0;
+ app.get('/api/auth/credential',(_req,res)=>res.json({hasCredential:false}));
+ app.post('/api/auth/start-login',(req,res)=>{
+  assert.equal(req.body.studentId,'synthetic-existing-account');
+  assert.equal(req.body.signInExisting,true);
+  directStarts++;
+  res.json({step:'mfa',needsCode:true});
+ });
+ app.post('/api/auth/submit-code',(req,res)=>{
+  assert.equal(req.body.code,'445566');
+  res.json({step:'ready',loggedIn:true,identity:{openid:'original-teacher',token:'original-token',refreshToken:'original-refresh'}});
+ });
  app.use('/api',(req,res)=>res.json({}));app.use(express.static(path.resolve(process.env.ACADEMIC_E2E_WEB_ROOT||'student-recorder/.qa/academic114-web')));app.use((req,res)=>res.sendFile(path.resolve('student-recorder/.qa/academic114-web/index.html')));const server=app.listen(18766,'127.0.0.1');await new Promise(r=>server.once('listening',r));let browser;
  try{browser=await chromium.launch({executablePath:process.env.CHROME_BINARY||undefined,args:['--no-sandbox','--disable-dev-shm-usage','--no-proxy-server','--renderer-process-limit=1','--disable-gpu','--disable-breakpad','--disable-crash-reporter']});const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>sessionStorage.setItem('recorder.http___127.0.0.1_18766.session',JSON.stringify({openid:'preview-teacher',token:'preview-token',refreshToken:'preview-refresh'})));
  const enter=async()=>{await page.goto('http://127.0.0.1:18766');await page.getByRole('button',{name:'学业管理',exact:true}).click();await page.getByText('本页显示已保存成绩，进入页面不会自动更新学校成绩。',{exact:true}).waitFor()};
@@ -20,6 +32,17 @@ const deps=process.env.ACADEMIC_E2E_DEPS||require('path').resolve(__dirname,'../
  connected=false;mode='network';await enter();await page.getByRole('button',{name:'更新所带学生的学校成绩',exact:true}).click();await page.getByText('教务暂时不可用，已保存成绩保留',{exact:true}).waitFor();assert.equal(await page.getByLabel('HIT APP 本次验证码',{exact:true}).count(),0);await page.getByRole('button',{name:'查看挂科学分排名',exact:true}).waitFor();assert.equal(sms,1);
  mode='silent';connected=true;deviceSaved=true;await page.getByRole('button',{name:'查看或恢复教务连接',exact:true}).click();await page.getByRole('button',{name:'断开教务连接（保留长期登录信息）',exact:true}).click();assert.equal(deviceSaved,true);await page.getByRole('button',{name:'清除长期登录信息…',exact:true}).click();await page.getByRole('button',{name:'确认清除长期登录信息',exact:true}).click();await page.getByText('已清除长期登录信息',{exact:true}).waitFor();assert.equal(forgot,1);assert.equal(deviceSaved,false);assert.equal(sms,1);
  connected=false;mode='verify';await enter();const held=commits;await page.getByRole('button',{name:'更新所带学生的学校成绩',exact:true}).click();await page.getByLabel('HIT APP 本次验证码',{exact:true}).waitFor();await page.getByRole('button',{name:'清除长期登录信息…',exact:true}).click();await page.getByRole('button',{name:'确认清除长期登录信息',exact:true}).click();await page.getByText('已清除长期登录信息',{exact:true}).waitFor();await page.getByRole('button',{name:'返回查看已保存成绩',exact:true}).click();await page.getByRole('button',{name:'查看挂科学分排名',exact:true}).waitFor();assert.equal(commits,held);assert.equal(sms,1);
+ await page.getByText('我的',{exact:true}).click();
+ await page.getByRole('button',{name:'重新验证学校连接',exact:true}).click();
+ await page.getByLabel('学校账号',{exact:true}).fill('synthetic-existing-account');
+ await page.getByLabel('学校密码（保留原样）',{exact:true}).fill('synthetic-password');
+ await page.getByRole('button',{name:'验证并登录学校账号',exact:true}).click();
+ await page.getByLabel('动态验证码',{exact:true}).fill('445566');
+ await page.getByRole('button',{name:'完成学校验证',exact:true}).click();
+ await page.getByRole('button',{name:'辨识材料与记忆',exact:true}).waitFor();
+ const restored=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('recorder.http___127.0.0.1_18766.session')));
+ assert.equal(restored.openid,'original-teacher');
+ assert.equal(directStarts,1);
  assert.deepEqual(errors,[]);const proof={passed:true,checks:['缓存查看不触发更新或认证','刷新统计不更新学校成绩','失效后自动恢复并引导验证','后台不主动发送验证码','取消后保留数据且不提交','验证码由用户明确获取','验证后回原页并续接一次','静默恢复成功免验证续接','网络故障不当成掉线','普通断开保留长期状态','明确清除长期登录信息','清除时取消待续接操作','恢复途中App令牌过期自动续期'],smsRequests:sms,committedUpdates:commits,errors};fs.writeFileSync('.qa/results/v114_自动恢复与验证续接浏览器证明.json',JSON.stringify(proof,null,2));console.log('教务自动恢复与续接13项浏览器流程通过。');
  }catch(e){console.error(e.stack);throw e}finally{await browser?.close();await new Promise(r=>server.close(r))}
 })().catch(()=>process.exitCode=1);
