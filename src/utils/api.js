@@ -240,7 +240,14 @@ export async function recoverIdentity(recoveryKey) {
   return result;
 }
 export async function request(method, path, data, options = {}) {
+  const epoch = identityEpoch;
   let current = await identity();
+  const owner = current.openid;
+  const checkIdentity = (openid = owner) => {
+    if (epoch !== identityEpoch || openid !== owner)
+      throw new ApiError("登录账号已变化，请重新进入", 409, "IDENTITY_CHANGED");
+  };
+  checkIdentity();
   try {
     return await raw(method, path, data, {
       ...options,
@@ -248,6 +255,7 @@ export async function request(method, path, data, options = {}) {
       timeout: options.timeout || (canResumeAcademic(method,path)&&!path.includes("/dashboard")&&!path.endsWith("/state")?140000:(path.includes("/api/auth/")?90000:30000)),
     });
   } catch (error) {
+    checkIdentity();
     if(error.code==='ACADEMIC_AUTH_REQUIRED'&&!options.academicRetry&&canResumeAcademic(method,path))return academicRecovery.recover(()=>request(method,path,data,{...options,academicRetry:true}));
     if (
       error.status === 401 &&
@@ -257,13 +265,16 @@ export async function request(method, path, data, options = {}) {
     if (error.status === 401 && error.code === "AUTH_REQUIRED") {
       try {
         const latest = await identity();
+        checkIdentity(latest.openid);
         if (latest.token === current.token) await refreshIdentity();
         current = await identity();
+        checkIdentity(current.openid);
         return await raw(method, path, data, {
           ...options,
           token: current.token,
         });
       } catch (e) {
+        checkIdentity();
         if (
           e.status === 401 &&
           ["SCHOOL_AUTH_REQUIRED", "SCHOOL_LOGIN_FAILED"].includes(e.code)
