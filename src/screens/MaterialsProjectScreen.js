@@ -10,6 +10,15 @@ export default function MaterialsProjectScreen({navigation,route}){
  const [data,D]=useState(null),[error,E]=useState(null),[busy,B]=useState(false),[search,S]=useState(''),[className,C]=useState(''),[page,N]=useState(0),[editing,V]=useState(null),[fields,F]=useState({}),[confirmed,Q]=useState(false),[portrait,P]=useState(null),[mode,M]=useState('both'),[draft,G]=useState(true),[jobs,J]=useState([]),[preview,I]=useState(null),[mapping,U]=useState({}),[identityQuery,H]=useState(''),[mappingIndex,X]=useState(null),[importConfirmed,K]=useState(false);
  const alive=useRef(false),locked=useRef(false),editRef=useRef(null),scroll=useRef(null);
  const load=async()=>{const d=await get(base);if(alive.current){D(d);J(d.jobs||[])}return d};
+ const [downloadState,setDownloadState]=useState(null);
+ const download=async job=>{
+  setDownloadState({id:job.id,written:0,total:0});
+  try{
+   await downloadMaterial(job,({totalBytesWritten,totalBytesExpectedToWrite})=>{
+    if(alive.current)setDownloadState({id:job.id,written:totalBytesWritten,total:totalBytesExpectedToWrite});
+   });
+  }finally{if(alive.current)setDownloadState(null);}
+ };
  const run=async fn=>{if(locked.current)return;locked.current=true;B(true);E(null);try{await fn()}catch(e){if(alive.current)E(e)}finally{locked.current=false;if(alive.current)B(false)}};
  useFocusEffect(useCallback(()=>{alive.current=true;void load().catch(E);return()=>{alive.current=false}},[id]));
  const active=jobs.some(j=>['pending','running'].includes(j.status));
@@ -36,7 +45,7 @@ export default function MaterialsProjectScreen({navigation,route}){
  <Card><Title>生成辨识PPT</Title><Body muted>范围：{className||'全部所带学生'}。每班单独分页，每页最多12人；考核版保留照片和空白栏目。</Body>{[['both','完整版与考核版'],['full','仅完整版'],['assessment','仅考核版']].map(([v,label])=><Choice key={v} label={label} selected={mode===v} onPress={()=>M(v)}/>)}<Choice label="生成草稿，允许缺项并标明待补充" selected={draft} onPress={()=>G(!draft)}/><Body muted>{draft?'草稿可先核查版式，不应直接提交。':'提交版须照片齐全、字段已确认，过长内容须先精简。'}</Body><Button title={draft?'生成PPT草稿':'生成PPT提交版'} loading={busy} disabled={active} onPress={()=>run(async()=>{const j=await post(base+'/exports',{mode,draft,className});J(old=>[j,...old])})}/></Card>
  <Card><Title>导入已完成的辨识材料</Title><Body muted>支持本次同版式的完整版PPTX。解析后先核对身份和字段，再确认写入。考核版空栏不能恢复个人情况。</Body><Button title="选择已完成的PPTX" loading={busy} disabled={active} onPress={()=>run(async()=>{const j=await pickMaterial(id);if(j){J(old=>[j,...old]);U({});I(null)}})}/></Card>
  <Card><Title>背诵内容范围</Title><Body muted>默认练习姓名、班级与已确认的班委情况。需要背诵其他个人情况时，可在此加入。</Body><Choice label="将已确认的政治面貌、关注群体、原因、学情及其他情况加入记忆" selected={!!data.sensitive} disabled={busy} onPress={()=>run(async()=>D(await post(base+'/settings',{sensitive:!data.sensitive})))}/><Body muted>仅同步已核实的字段，不自动交给AI分析。</Body></Card>
- {jobs.map(j=><Card key={j.id}><Pill tone={j.status==='failed'?'danger':'neutral'}>{labels[j.status]||j.status}</Pill><Body>{j.kind==='import'?'PPT导入':'PPT生成'}</Body>{!!j.message&&<Body>{j.message}</Body>}{j.report&&<Body muted>{j.kind==='import'?'解析'+j.report.rows+'条，唯一匹配'+j.report.matched+'条':(j.report.files||[]).map(f=>f.filename+' '+f.pages+'页').join(' · ')}</Body>}{j.report?.issues?.slice(0,12).map((issue,i)=><RowLink key={i} title={(issue.name||issue.studentId)+' · '+(data.fields[issue.field]||'照片')} detail={issue.message} onPress={()=>{const s=data.students.find(s=>s.studentId===issue.studentId);if(s)select(s)}}/>)}{j.status==='completed'&&<Button title={j.kind==='import'?'核对本次导入':'下载辨识材料压缩包'} secondary loading={busy} onPress={()=>run(()=>j.kind==='import'?showPreview(j):downloadMaterial(j))}/>}</Card>)}
+ {jobs.map(j=><Card key={j.id}><Pill tone={j.status==='failed'?'danger':'neutral'}>{labels[j.status]||j.status}</Pill><Body>{j.kind==='import'?'PPT导入':'PPT生成'}</Body>{!!j.message&&<Body>{j.message}</Body>}{j.report&&<Body muted>{j.kind==='import'?'解析'+j.report.rows+'条，唯一匹配'+j.report.matched+'条':(j.report.files||[]).map(f=>f.filename+' '+f.pages+'页').join(' · ')}</Body>}{j.report?.issues?.slice(0,12).map((issue,i)=><RowLink key={i} title={(issue.name||issue.studentId)+' · '+(data.fields[issue.field]||'照片')} detail={issue.message} onPress={()=>{const s=data.students.find(s=>s.studentId===issue.studentId);if(s)select(s)}}/>)}{downloadState?.id===j.id&&<Body muted>{downloadState.total>0?'正在下载 '+Math.min(100,Math.floor(downloadState.written*100/downloadState.total))+'%':'正在下载辨识材料…'}</Body>}{j.status==='completed'&&<Button title={j.kind==='import'?'核对本次导入':'下载辨识材料压缩包'} secondary loading={busy} onPress={()=>run(()=>j.kind==='import'?showPreview(j):download(j))}/>}</Card>)}
  <Button secondary title="刷新项目与任务" loading={busy} onPress={()=>run(load)}/>
  </Page>;
 }

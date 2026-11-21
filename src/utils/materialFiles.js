@@ -2,7 +2,7 @@ import {Platform} from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import {BASE_URL,identity,refreshIdentity,post} from './api';
+import {BASE_URL,identity,identityContext,refreshIdentity,post} from './api';
 export async function pickMaterial(projectId){
  const r=await DocumentPicker.getDocumentAsync({type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',copyToCacheDirectory:true,multiple:false});if(r.canceled)return null;const f=r.assets[0];
  try{if(!f.name.toLowerCase().endsWith('.pptx')||!f.size||f.size>25*1024*1024)throw Error('请选择不超过25MiB的PPTX文件');let file;
@@ -11,9 +11,49 @@ export async function pickMaterial(projectId){
  return await post('/api/materials/projects/'+projectId+'/imports',{filename:f.name,file},{timeout:120000});
  }finally{if(Platform.OS!=='web'&&f.uri?.startsWith(FileSystem.cacheDirectory))await FileSystem.deleteAsync(f.uri,{idempotent:true}).catch(()=>{})}
 }
-export async function downloadMaterial(job){
- if(!/^[a-f0-9-]{36}$/.test(job.id))throw Error('材料任务编号无效');const path='/api/materials/jobs/'+job.id+'/download',name='辨识材料.zip';let auth=await identity();
- if(Platform.OS==='web'){let r=await fetch(BASE_URL+path,{headers:{Authorization:'Bearer '+auth.token}});if(r.status===401){await refreshIdentity();auth=await identity();r=await fetch(BASE_URL+path,{headers:{Authorization:'Bearer '+auth.token}})}if(!r.ok)throw Error(r.status===409?'资料已更新，请重新生成':'下载失败，请刷新重试');const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return}
- if(!await Sharing.isAvailableAsync())throw Error('此设备暂不支持系统文件分享');const uri=FileSystem.cacheDirectory+name;
- try{let r=await FileSystem.downloadAsync(BASE_URL+path,uri,{headers:{Authorization:'Bearer '+auth.token}});if(r.status===401){await refreshIdentity();auth=await identity();r=await FileSystem.downloadAsync(BASE_URL+path,uri,{headers:{Authorization:'Bearer '+auth.token}})}if(r.status!==200)throw Error(r.status===409?'资料已更新，请重新生成':'下载失败，请刷新重试');await Sharing.shareAsync(uri,{mimeType:'application/zip',dialogTitle:'保存辨识PPT'})}finally{await FileSystem.deleteAsync(uri,{idempotent:true}).catch(()=>{})}
+export async function downloadMaterial(job,onProgress=()=>{}){
+ if(!/^[a-f0-9-]{36}$/.test(job.id))throw Error('材料任务编号无效');
+ const endpoint=BASE_URL+'/api/materials/jobs/'+job.id+'/download';
+ const context=await identityContext();
+ const checkOwner=async()=>{
+  if(await identityContext()!==context)throw Error('账号已切换，请重新打开材料项目');
+ };
+ const fetchWithSession=async download=>{
+  let auth=await identity(), result=await download(auth.token);
+  if(result?.status===401){
+   await checkOwner();
+   await refreshIdentity();
+   await checkOwner();
+   auth=await identity();
+   result=await download(auth.token);
+  }
+  return result;
+ };
+ const assertDownloaded=status=>{
+  if(status!==200)throw Error(status===409?'资料已更新，请重新生成':'下载失败，请检查网络后重试');
+ };
+ if(Platform.OS==='web'){
+  const response=await fetchWithSession(token=>fetch(endpoint,{headers:{Authorization:'Bearer '+token}}));
+  assertDownloaded(response.status);
+  const blob=await response.blob();
+  await checkOwner();
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;link.download='辨识材料.zip';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  return;
+ }
+ if(!await Sharing.isAvailableAsync())throw Error('此设备暂不支持系统文件分享');
+ const dir=FileSystem.cacheDirectory+'material-'+job.id+'/';
+ const uri=dir+'辨识材料.zip';
+ await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
+ try{
+  const result=await fetchWithSession(token=>FileSystem.createDownloadResumable(
+   endpoint,uri,{headers:{Authorization:'Bearer '+token}},onProgress,
+  ).downloadAsync());
+  assertDownloaded(result?.status);
+  await checkOwner();
+  await Sharing.shareAsync(uri,{mimeType:'application/zip',dialogTitle:'保存辨识PPT'});
+ } finally {
+  await FileSystem.deleteAsync(dir,{idempotent:true}).catch(()=>{});
+ }
 }
