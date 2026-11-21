@@ -11,9 +11,39 @@ export async function pickMaterial(projectId){
  return await post('/api/materials/projects/'+projectId+'/imports',{filename:f.name,file},{timeout:120000});
  }finally{if(Platform.OS!=='web'&&f.uri?.startsWith(FileSystem.cacheDirectory))await FileSystem.deleteAsync(f.uri,{idempotent:true}).catch(()=>{})}
 }
+const PRODUCTION_BASE = 'https://wiseliang.cloud/student-recorder';
+const DIRECT_BASE = 'https://download.wiseliang.cloud/student-recorder';
+
+async function directDownload(path,uri,token,onProgress){
+ let timer, stopped=false;
+ const task=FileSystem.createDownloadResumable(
+  DIRECT_BASE+path,uri,{headers:{Authorization:'Bearer '+token}},
+  progress=>{
+   if(stopped)return;
+   if(progress.totalBytesWritten>0)clearTimeout(timer);
+   onProgress(progress);
+  },
+ );
+ const firstByteDeadline=new Promise(resolve=>{
+  timer=setTimeout(()=>{
+   stopped=true;
+   void task.cancelAsync().catch(()=>{});
+   resolve(null);
+  },10000);
+ });
+ try {
+  const result=await Promise.race([task.downloadAsync(),firstByteDeadline]);
+  return result?.status===200?result:null;
+ } catch {
+  return null;
+ } finally {
+  clearTimeout(timer);
+ }
+}
 export async function downloadMaterial(job,onProgress=()=>{}){
  if(!/^[a-f0-9-]{36}$/.test(job.id))throw Error('材料任务编号无效');
- const endpoint=BASE_URL+'/api/materials/jobs/'+job.id+'/download';
+ const path='/api/materials/jobs/'+job.id+'/download';
+ const endpoint=BASE_URL+path;
  const context=await identityContext();
  const checkOwner=async()=>{
   if(await identityContext()!==context)throw Error('账号已切换，请重新打开材料项目');
@@ -44,15 +74,28 @@ export async function downloadMaterial(job,onProgress=()=>{}){
  }
  if(!await Sharing.isAvailableAsync())throw Error('此设备暂不支持系统文件分享');
  const dir=FileSystem.cacheDirectory+'material-'+job.id+'/';
- const uri=dir+'辨识材料.zip';
+ const normalUri=dir+'辨识材料.zip';
+ const directDir=dir+'direct/';
+ const directUri=directDir+'辨识材料.zip';
  await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
  try{
+  if(BASE_URL===PRODUCTION_BASE){
+   const {token}=await identity();
+   await FileSystem.makeDirectoryAsync(directDir,{intermediates:true});
+   const result=await directDownload(path,directUri,token,onProgress);
+   await checkOwner();
+   if(result){
+    await Sharing.shareAsync(directUri,{mimeType:'application/zip',dialogTitle:'保存辨识PPT'});
+    return;
+   }
+   onProgress({totalBytesWritten:0,totalBytesExpectedToWrite:0});
+  }
   const result=await fetchWithSession(token=>FileSystem.createDownloadResumable(
-   endpoint,uri,{headers:{Authorization:'Bearer '+token}},onProgress,
+   endpoint,normalUri,{headers:{Authorization:'Bearer '+token}},onProgress,
   ).downloadAsync());
   assertDownloaded(result?.status);
   await checkOwner();
-  await Sharing.shareAsync(uri,{mimeType:'application/zip',dialogTitle:'保存辨识PPT'});
+  await Sharing.shareAsync(normalUri,{mimeType:'application/zip',dialogTitle:'保存辨识PPT'});
  } finally {
   await FileSystem.deleteAsync(dir,{idempotent:true}).catch(()=>{});
  }
