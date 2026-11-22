@@ -5,13 +5,13 @@ import * as FileSystem from 'expo-file-system';
 import {gcm} from '@noble/ciphers/aes';
 import {bytesToHex,hexToBytes} from '@noble/ciphers/utils';
 import {Buffer} from 'buffer/';
-import {identity,BASE_URL} from './api';
+import {identity,STORAGE_BASE_URL} from './api';
 const KEY='student.memory.key.v1';let keyFlight;const writes=new Map();
 async function deviceKey(){
  if(!keyFlight)keyFlight=(async()=>{let value=Platform.OS==='web'?sessionStorage.getItem(KEY):await SecureStore.getItemAsync(KEY);if(!value){value=bytesToHex(await Crypto.getRandomBytesAsync(32));if(Platform.OS==='web')sessionStorage.setItem(KEY,value);else await SecureStore.setItemAsync(KEY,value,{keychainAccessible:SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY})}return hexToBytes(value)})().catch(error=>{keyFlight=null;throw error});
  return keyFlight;
 }
-async function scope(accountKey,projectId,type){const {openid}=await identity();if(!openid)throw Error('请先登录学工账号');const aad=[BASE_URL,openid,accountKey||'',projectId||'',type].join('|');const name=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,aad);return {aad,name};}
+async function scope(accountKey,projectId,type){const {openid}=await identity();if(!openid)throw Error('请先登录学工账号');const aad=[STORAGE_BASE_URL,openid,accountKey||'',projectId||'',type].join('|');const name=await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256,aad);return {aad,name};}
 async function writeFile(name,text){if(Platform.OS==='web'){localStorage.setItem('memory.'+name,text);return}const dir=FileSystem.documentDirectory+'private-memory/';await FileSystem.makeDirectoryAsync(dir,{intermediates:true});const file=dir+name+'.json',tmp=file+'.tmp';await FileSystem.writeAsStringAsync(tmp,text);await FileSystem.moveAsync({from:tmp,to:file});}
 async function readFile(name){if(Platform.OS==='web')return localStorage.getItem('memory.'+name);try{return await FileSystem.readAsStringAsync(FileSystem.documentDirectory+'private-memory/'+name+'.json')}catch{return null}}
 export async function readMemory(accountKey,projectId,type){const {aad,name}=await scope(accountKey,projectId,type);await writes.get(name)?.catch(()=>{});const raw=await readFile(name);if(!raw)return null;try{const {iv,data,encoding}=JSON.parse(raw),key=await deviceKey();const ciphertext=encoding==='base64'?Buffer.from(data,'base64'):hexToBytes(data);const plain=gcm(key,hexToBytes(iv),Buffer.from(aad,'utf8')).decrypt(ciphertext);return JSON.parse(Buffer.from(plain.buffer,plain.byteOffset,plain.byteLength).toString('utf8'))}catch{throw Error('本机加密资料无法读取，请联网重新同步；不会使用其他账号的缓存')}}

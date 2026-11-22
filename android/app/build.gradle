@@ -93,8 +93,8 @@ android {
         applicationId 'com.wiseliang.studentrecorder'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 29
-        versionName "1.16.4"
+        versionCode 30
+        versionName "1.16.5"
     }
     signingConfigs {
         debug {

@@ -5,7 +5,8 @@ const vm = require('node:vm');
 const babel = require('@babel/core');
 
 const job = { id: '12345678-1234-4234-8234-123456789abc' };
-const production = 'https://wiseliang.cloud/student-recorder';
+const production = 'https://hit-recorder.wiseliang.cloud/student-recorder';
+const legacyProduction = 'https://wiseliang.cloud/student-recorder';
 const direct = 'https://download.wiseliang.cloud/student-recorder';
 
 function setup(first, override = {}) {
@@ -31,6 +32,7 @@ function setup(first, override = {}) {
     },
     './api': {
       BASE_URL: override.base || production,
+      IS_PRODUCTION_API: [production, legacyProduction].includes(override.base || production),
       identityContext: async () => context,
       identity: async () => ({ token: 'fixture-token' }),
       refreshIdentity: async () => {},
@@ -75,4 +77,13 @@ test('does not share a download after the user has switched accounts', async () 
   const fixture = setup(switchAccount => { switchAccount(); return { status: 200 }; });
   await assert.rejects(fixture.run(), /账号已切换/);
   assert.deepEqual(fixture.shared, []);
+});
+
+test('retains the direct route for the old production origin and isolates a custom backend', async () => {
+  const old = setup(() => ({ status: 200 }), { base: legacyProduction });
+  await old.run();
+  assert(old.requests[0].url.startsWith(direct));
+  const custom = setup(() => ({ status: 200 }), { base: 'https://fixture.invalid' });
+  await custom.run();
+  assert(custom.requests[0].url.startsWith('https://fixture.invalid/api/'));
 });
