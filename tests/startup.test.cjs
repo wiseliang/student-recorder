@@ -6,7 +6,7 @@ const { test } = require("node:test"),
   babel = require("@babel/core");
 function moduleAt(
   file,
-  { storage = new Map(), secure = new Map(), fetch } = {},
+  { storage = new Map(), secure = new Map(), fetch, baseURL = "https://example.invalid" } = {},
 ) {
   const source = fs.readFileSync(path.join(__dirname, "../src", file), "utf8"),
     exports = {};
@@ -28,7 +28,7 @@ function moduleAt(
             setItem: async (k, v) => storage.set(k, v),
             removeItem: async (k) => storage.delete(k),
           },
-    process: { env: { EXPO_PUBLIC_API_BASE_URL: "https://example.invalid" } },
+    process: { env: { EXPO_PUBLIC_API_BASE_URL: baseURL } },
     setTimeout,
     clearTimeout,
     AbortController,
@@ -466,4 +466,36 @@ test("a late refresh cannot overwrite a newly verified different school account"
  await api.schoolSignIn("start",{studentId:"another-teacher",password:"fixture"});release();
  await assert.rejects(pending,e=>e.code==="IDENTITY_CHANGED");
  assert.equal((await api.identity()).openid,"new-owner");assert.equal(await api.getRecoveryKey(),null);
+});
+
+test("switching production API uses the existing session and pending refresh without a new login", async () => {
+ const oldHost = "https://wiseliang.cloud/student-recorder";
+ const newHost = "https://hit-recorder.wiseliang.cloud/student-recorder";
+ const namespace = "recorder.https___wiseliang.cloud_student-recorder.";
+ const secure = new Map([
+  [namespace+"session",JSON.stringify({openid:"same-owner",token:"existing-token",refreshToken:"old-refresh",recoveryKey:"existing-recovery"})],
+  [namespace+"refresh-operation",JSON.stringify({refreshToken:"old-refresh",operationId:"previous-verified-operation"})],
+ ]);
+ const updated = await moduleAt("utils/api.js",{baseURL:newHost,secure,fetch:async(url,options)=>{
+  assert.equal(url,newHost+"/api/auth/refresh");
+  assert.equal(JSON.parse(options.body).operationId,"previous-verified-operation");
+  return response(200,{openid:"same-owner",token:"updated-token",refreshToken:"new-refresh"});
+ }}).initializeIdentity();
+ assert.equal(updated.openid,"same-owner");
+ const fallback = moduleAt("utils/api.js",{baseURL:oldHost,secure});
+ assert.equal((await fallback.identity()).token,"updated-token");
+ assert.equal(await fallback.getRecoveryKey(),"existing-recovery");
+ assert.equal(moduleAt("utils/api.js").STORAGE_BASE_URL,"https://example.invalid");
+});
+
+test("the new production API accepts a pre-session identity stored for the old production URL", async () => {
+ const oldHost="https://wiseliang.cloud/student-recorder";
+ const newHost="https://hit-recorder.wiseliang.cloud/student-recorder";
+ const storage=new Map([["authServer",oldHost],["authToken","old-format-fixture"]]);
+ const api=moduleAt("utils/api.js",{baseURL:newHost,storage,fetch:async(url,options)=>{
+  assert.equal(url,newHost+"/api/auth/login");
+  assert.equal(options.headers.Authorization,"Bearer old-format-fixture");
+  return response(200,{openid:"same-owner",token:"renewed-token",refreshToken:"fresh-refresh"});
+ }});
+ assert.equal((await api.initializeIdentity()).openid,"same-owner");
 });

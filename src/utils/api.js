@@ -12,10 +12,14 @@ const SecureStore = {
       ? sessionStorage.setItem(k, v)
       : NativeSecureStore.setItemAsync(k, v),
 };
-export const BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  "https://wiseliang.cloud/student-recorder";
-const namespace = BASE_URL.replace(/[^a-zA-Z0-9._-]/g, "_");
+const LEGACY_PRODUCTION_BASE = "https://wiseliang.cloud/student-recorder";
+const PRODUCTION_BASE = "https://hit-recorder.wiseliang.cloud/student-recorder";
+export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || PRODUCTION_BASE;
+export const IS_PRODUCTION_API = BASE_URL === PRODUCTION_BASE || BASE_URL === LEGACY_PRODUCTION_BASE;
+// Both production hosts serve the same account database. Keep the original
+// local keys, including the namespace used by pre-upgrade encrypted files.
+export const STORAGE_BASE_URL = IS_PRODUCTION_API ? LEGACY_PRODUCTION_BASE : BASE_URL;
+const namespace = STORAGE_BASE_URL.replace(/[^a-zA-Z0-9._-]/g, "_");
 const key = (name) => `recorder.${namespace}.${name}`;
 let schoolListener = () => {};
 export function onSchoolExpired(fn) {
@@ -191,11 +195,12 @@ export async function initializeIdentity() {
     catch(e){if(e.status===0&&current.openid)return {...current,offline:true};throw e}
   }
   const oldServer=await AsyncStorage.getItem("authServer"),oldToken=await AsyncStorage.getItem("authToken"),oldId=await AsyncStorage.getItem("openid");
-  if(!current.openid&&oldServer===BASE_URL&&oldToken){
+  const sameServer = oldServer === BASE_URL || oldServer === STORAGE_BASE_URL;
+  if(!current.openid&&sameServer&&oldToken){
     try{return await saveIdentity(await raw("POST","/api/auth/login",{platform:"android"},{token:oldToken}))}
     catch(e){if(e.status===401)throw new ApiError("请验证学校账号以找回原记录",401,"LEGACY_RECOVERY_REQUIRED");throw e}
   }
-  if(current.openid||oldId&&oldServer===BASE_URL)throw new ApiError("请验证学校账号以找回原记录",401,"SESSION_RECOVERY_REQUIRED");
+  if(current.openid||oldId&&sameServer)throw new ApiError("请验证学校账号以找回原记录",401,"SESSION_RECOVERY_REQUIRED");
   throw new ApiError("使用学校账号登录，原有账号可直接找回",401,"SCHOOL_SIGNIN_REQUIRED");
 }
 export async function schoolSignIn(action,body={}) {

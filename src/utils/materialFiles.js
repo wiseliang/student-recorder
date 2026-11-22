@@ -2,7 +2,7 @@ import {Platform} from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import {BASE_URL,identity,identityContext,refreshIdentity,post} from './api';
+import {BASE_URL,IS_PRODUCTION_API,identity,identityContext,refreshIdentity,post} from './api';
 export async function pickMaterial(projectId){
  const r=await DocumentPicker.getDocumentAsync({type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',copyToCacheDirectory:true,multiple:false});if(r.canceled)return null;const f=r.assets[0];
  try{if(!f.name.toLowerCase().endsWith('.pptx')||!f.size||f.size>25*1024*1024)throw Error('请选择不超过25MiB的PPTX文件');let file;
@@ -11,7 +11,6 @@ export async function pickMaterial(projectId){
  return await post('/api/materials/projects/'+projectId+'/imports',{filename:f.name,file},{timeout:120000});
  }finally{if(Platform.OS!=='web'&&f.uri?.startsWith(FileSystem.cacheDirectory))await FileSystem.deleteAsync(f.uri,{idempotent:true}).catch(()=>{})}
 }
-const PRODUCTION_BASE = 'https://wiseliang.cloud/student-recorder';
 const DIRECT_BASE = 'https://download.wiseliang.cloud/student-recorder';
 
 async function directDownload(path,uri,token,onProgress){
@@ -79,7 +78,7 @@ export async function downloadMaterial(job,onProgress=()=>{}){
  const directUri=directDir+'辨识材料.zip';
  await FileSystem.makeDirectoryAsync(dir,{intermediates:true});
  try{
-  if(BASE_URL===PRODUCTION_BASE){
+  if(IS_PRODUCTION_API){
    const {token}=await identity();
    await FileSystem.makeDirectoryAsync(directDir,{intermediates:true});
    const result=await directDownload(path,directUri,token,onProgress);
