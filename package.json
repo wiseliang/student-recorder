@@ -1,6 +1,6 @@
 {
   "name": "student-recorder",
-  "version": "1.16.5",
+  "version": "1.16.6",
   "main": "App.js",
   "scripts": {
     "start": "expo start",
