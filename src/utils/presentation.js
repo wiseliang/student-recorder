@@ -1,4 +1,4 @@
-export const VERSION = "1.16.6";
+export const VERSION = "1.17.0";
 export const ACTIVE = [
   "queued",
   "running",
