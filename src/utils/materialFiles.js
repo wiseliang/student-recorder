@@ -3,12 +3,12 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import {BASE_URL,IS_PRODUCTION_API,identity,identityContext,refreshIdentity,post} from './api';
-export async function pickMaterial(projectId,autoApply){
+export async function pickMaterial(projectId){
  const r=await DocumentPicker.getDocumentAsync({type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',copyToCacheDirectory:true,multiple:false});if(r.canceled)return null;const f=r.assets[0];
  try{const size=f.size??(Platform.OS==='web'?f.file?.size:(await FileSystem.getInfoAsync(f.uri)).size);if(!f.name.toLowerCase().endsWith('.pptx')||!size||size>25*1024*1024)throw Error('请选择不超过25MiB的PPTX文件');let file;
  if(Platform.OS==='web'){const blob=f.file||await (await fetch(f.uri)).blob();file=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(blob)})}
  else file=await FileSystem.readAsStringAsync(f.uri,{encoding:FileSystem.EncodingType.Base64});
- return await post('/api/materials/projects/'+projectId+'/imports',{filename:f.name,file,autoApply},{timeout:120000});
+ return await post('/api/materials/projects/'+projectId+'/imports',{filename:f.name,file,studyBank:true},{timeout:120000});
  }finally{if(Platform.OS!=='web'&&f.uri?.startsWith(FileSystem.cacheDirectory))await FileSystem.deleteAsync(f.uri,{idempotent:true}).catch(()=>{})}
 }
 const DIRECT_BASE = 'https://download.wiseliang.cloud/student-recorder';

@@ -21,14 +21,15 @@ export function attributeValues(cards,attributes,key,className='') {
 }
 
 export function studyCards(pack,filters,ratings) {
-  const {scopeId,attribute,attributeValue}=filters;
+  const {scopeId,attribute,attributeValue,mode}=filters;
   const cards=scopeCards(pack,scopeId);
   const filtered=cards.filter(card=>{
+    if(mode==='study'&&card.kind!=='profile'||mode==='exam'&&card.kind==='profile')return false;
     if(!attribute)return true;
     const values=pack.studentAttributes?.[studentKey(card)]?.[attribute]||[];
     return attributeValue?values.includes(attributeValue):values.length>0;
   });
-  return selectMemoryCards(filtered,filters,ratings);
+  return selectMemoryCards(filtered,mode==='study'?{...filters,kind:''}:filters,ratings);
 }
 
 const normalizeAnswer=value=>value.normalize('NFKC').replace(/\s+/gu,'').toLowerCase();
