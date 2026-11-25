@@ -44,8 +44,9 @@ export default function MaterialsProjectScreen({navigation,route}){
  if(!data)return <Page><Title>辨识资料</Title><Body muted>正在读取项目…</Body><ErrorBox error={error} onRetry={()=>run(load)}/></Page>;
  const people=data.students.filter(s=>(!className||s.className===className)&&(!search||[s.name,s.studentId,s.className].some(v=>v?.includes(search)))),shown=people.slice(page*12,page*12+12),mapCount=Object.values(mapping).filter(Boolean).length;
  const latestImport=jobs.find(j=>j.kind==='import');
+ const latestImportJobId=jobs.find(j=>j.kind==='import'&&j.status==='imported')?.id;
  return <Page scrollRef={scroll}><Title>{data.title}</Title><Body muted>辅导员：{data.counselor} · {data.students.length}名当前所带学生</Body><ErrorBox error={error}/>
- <Button title="在App内背诵" onPress={()=>navigation.navigate('StudentMemory',{projectId:id,accountKey:data.accountKey,title:data.title})}/>
+ <Button title="在App内背诵" onPress={()=>navigation.navigate('StudentMemory',{projectId:id,accountKey:data.accountKey,title:data.title,latestImportJobId})}/>
  {!preview&&latestImport&&<Card>
  <Title>PPT 导入进度</Title><Pill tone={latestImport.status==='failed'?'danger':'neutral'}>{labels[latestImport.status]||latestImport.status}</Pill>
  {latestImport.message?<Body>{latestImport.message}</Body>:null}
@@ -58,7 +59,8 @@ export default function MaterialsProjectScreen({navigation,route}){
  {latestImport.status==='imported'&&latestImport.report?.imported!=null&&<>
  <Body>已更新 {latestImport.report.imported} 名学生的辨识资料</Body>
  {latestImport.report.skipped>0&&<Body muted>有 {latestImport.report.skipped} 条未写入。需要逐条处理时，可选择先核对再重新导入。</Body>}
- <Body muted>请重新生成已有的 PPT。在背诵页面可同步最新资料。</Body>
+ <Button title="背诵本次导入的 PPT" onPress={()=>navigation.navigate('StudentMemory',{projectId:id,accountKey:data.accountKey,title:data.title,importJobId:latestImport.id})}/>
+ <Body muted>如需更新已有的 PPT，请重新生成。</Body>
  </>}
  </Card>}
  {editing&&<Card><Title>核实：{editing.name}</Title><Body>{editing.className} · {editing.studentId}</Body>{portrait&&<Image accessibilityLabel="待核对学生照片" source={{uri:portrait}} style={{width:110,height:150,alignSelf:'center'}} resizeMode="contain"/>}
